@@ -1,0 +1,1 @@
+ALTER TABLE booking_events REMOVE PARTITIONING;

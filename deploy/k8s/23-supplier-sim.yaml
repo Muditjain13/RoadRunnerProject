@@ -1,0 +1,47 @@
+# No chaos flags set here - matches docker-compose.yml's default (zero
+# error rate, zero added latency). To deploy the chaos-testing variant
+# `make chaos` demonstrates locally, add e.g.
+# args: ["--flight-error-rate=0.4", "--flight-p99=2s"] to the container.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: supplier-sim
+  namespace: transport-app
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: supplier-sim } }
+  template:
+    metadata: { labels: { app: supplier-sim } }
+    spec:
+      containers:
+        - name: supplier-sim
+          image: transport-app/supplier-sim:latest
+          ports:
+            - { name: grpc, containerPort: 8084 }
+            - { name: metrics, containerPort: 9104 }
+          env:
+            - { name: SUPPLIER_SIM_GRPC_ADDR, value: ":8084" }
+            - { name: SUPPLIER_SIM_METRICS_ADDR, value: ":9104" }
+            - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "jaeger:4317" }
+          readinessProbe:
+            grpc: { port: 8084 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            grpc: { port: 8084 }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 100m, memory: 64Mi }
+            limits: { memory: 256Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: supplier-sim
+  namespace: transport-app
+spec:
+  selector: { app: supplier-sim }
+  ports:
+    - { name: grpc, port: 8084, targetPort: 8084 }
+    - { name: metrics, port: 9104, targetPort: 9104 }

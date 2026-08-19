@@ -1,0 +1,63 @@
+# Redpanda: single-binary, Kafka-API-compatible broker - same choice as
+# deploy/compose/docker-compose.yml, for the same reason (no ZooKeeper or
+# multi-broker cluster to run for a local/demo deployment).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka
+  namespace: transport-app
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: kafka } }
+  template:
+    metadata: { labels: { app: kafka } }
+    spec:
+      containers:
+        - name: redpanda
+          image: redpandadata/redpanda:v24.2.7
+          args:
+            - redpanda
+            - start
+            - --smp=1
+            - --memory=512M
+            - --overprovisioned
+            - --node-id=0
+            - --check=false
+            - --kafka-addr=PLAINTEXT://0.0.0.0:9092
+            - --advertise-kafka-addr=PLAINTEXT://kafka:9092
+          ports: [{ containerPort: 9092 }]
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/redpanda/data }
+          readinessProbe:
+            exec: { command: ["rpk", "cluster", "health", "--exit-when-healthy"] }
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket: { port: 9092 }
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          resources:
+            requests: { cpu: 250m, memory: 512Mi }
+            limits: { memory: 1Gi }
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: kafka-data }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kafka-data
+  namespace: transport-app
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources: { requests: { storage: 5Gi } }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka
+  namespace: transport-app
+spec:
+  selector: { app: kafka }
+  ports: [{ port: 9092, targetPort: 9092 }]

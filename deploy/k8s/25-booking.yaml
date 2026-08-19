@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: booking
+  namespace: transport-app
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: booking } }
+  template:
+    metadata: { labels: { app: booking } }
+    spec:
+      containers:
+        - name: booking
+          image: transport-app/booking:latest
+          ports:
+            - { name: grpc, containerPort: 8085 }
+            - { name: metrics, containerPort: 9105 }
+          env:
+            - name: BOOKING_MYSQL_DSN
+              valueFrom: { secretKeyRef: { name: transport-app-db, key: BOOKING_MYSQL_DSN } }
+            - { name: BOOKING_GRPC_ADDR, value: ":8085" }
+            - { name: BOOKING_METRICS_ADDR, value: ":9105" }
+            - { name: INVENTORY_GRPC_ADDR, value: "inventory:8082" }
+            - { name: PAYMENT_GRPC_ADDR, value: "payment:8083" }
+            - { name: SUPPLIER_SIM_GRPC_ADDR, value: "supplier-sim:8084" }
+            - { name: KAFKA_BROKER, value: "kafka:9092" }
+            - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "jaeger:4317" }
+          readinessProbe:
+            grpc: { port: 8085 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            grpc: { port: 8085 }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 150m, memory: 96Mi }
+            limits: { memory: 384Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: booking
+  namespace: transport-app
+spec:
+  selector: { app: booking }
+  ports:
+    - { name: grpc, port: 8085, targetPort: 8085 }
+    - { name: metrics, port: 9105, targetPort: 9105 }
+---
+# Every step of the saga (hold, charge, confirm) runs synchronously
+# inside one CreateBooking call - the most latency- and CPU-heavy request
+# path in the system, and the one CLAUDE.md's core claims are about.
+# Scales independently of search/gateway for that reason.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: booking
+  namespace: transport-app
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: booking }
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource: { name: cpu, target: { type: Utilization, averageUtilization: 70 } }

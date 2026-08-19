@@ -1,0 +1,54 @@
+# Image naming convention for every service manifest in this directory:
+# transport-app/<service>:latest, built via `docker build --build-arg
+# SERVICE=<service> -t transport-app/<service>:latest .` from the repo
+# root Dockerfile, then pushed to whatever registry the cluster pulls
+# from. No CI pipeline publishes these yet - that's the one piece of
+# "make this actually deployable" left undone, tracked honestly rather
+# than pretended away.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalog
+  namespace: transport-app
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: catalog } }
+  template:
+    metadata: { labels: { app: catalog } }
+    spec:
+      containers:
+        - name: catalog
+          image: transport-app/catalog:latest
+          ports:
+            - { name: grpc, containerPort: 8081 }
+            - { name: metrics, containerPort: 9101 }
+          env:
+            - { name: CATALOG_MONGO_URI, value: "mongodb://mongo:27017" }
+            - { name: CATALOG_GRPC_ADDR, value: ":8081" }
+            - { name: CATALOG_METRICS_ADDR, value: ":9101" }
+            - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "jaeger:4317" }
+          # Native gRPC probe (stable since k8s 1.24) against
+          # pkg/middleware.RegisterHealth's grpc.health.v1.Health service -
+          # no probe binary, no extra HTTP endpoint needed.
+          readinessProbe:
+            grpc: { port: 8081 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            grpc: { port: 8081 }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 100m, memory: 64Mi }
+            limits: { memory: 256Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: catalog
+  namespace: transport-app
+spec:
+  selector: { app: catalog }
+  ports:
+    - { name: grpc, port: 8081, targetPort: 8081 }
+    - { name: metrics, port: 9101, targetPort: 9101 }

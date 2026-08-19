@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  namespace: transport-app
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: gateway } }
+  template:
+    metadata: { labels: { app: gateway } }
+    spec:
+      containers:
+        - name: gateway
+          image: transport-app/gateway:latest
+          ports:
+            - { name: http, containerPort: 8080 }
+            - { name: metrics, containerPort: 9100 }
+          env:
+            - { name: GATEWAY_HTTP_ADDR, value: ":8080" }
+            - { name: GATEWAY_METRICS_ADDR, value: ":9100" }
+            - { name: SEARCH_GRPC_ADDR, value: "search:8086" }
+            - { name: BOOKING_GRPC_ADDR, value: "booking:8085" }
+            - { name: INVENTORY_GRPC_ADDR, value: "inventory:8082" }
+            - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "jaeger:4317" }
+          # gateway is HTTP-facing, not gRPC - probes hit /healthz
+          # (internal/gateway/handler/router.go) instead of the native
+          # grpc probe type every other service uses.
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 100m, memory: 64Mi }
+            limits: { memory: 256Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  namespace: transport-app
+spec:
+  # LoadBalancer here for a minimal, self-contained "how do I reach this"
+  # answer; a real deployment would more likely front this with an
+  # Ingress (path-based TLS termination, WAF, etc.) and keep this
+  # ClusterIP - swap the type and add an Ingress resource for that setup.
+  type: LoadBalancer
+  selector: { app: gateway }
+  ports:
+    - { name: http, port: 80, targetPort: 8080 }
+    - { name: metrics, port: 9100, targetPort: 9100 }
+---
+# gateway is the one service every user request touches first - the
+# clearest "traffic spike -> more pods" candidate in the system.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: gateway
+  namespace: transport-app
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: gateway }
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource: { name: cpu, target: { type: Utilization, averageUtilization: 70 } }

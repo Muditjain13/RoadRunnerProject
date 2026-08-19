@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+package suppliersim.v1;
+
+option go_package = "github.com/Muditjain13/transport-app/api/proto/suppliersim/v1;suppliersimv1";
+
+// SupplierSimService fakes the external systems booking's saga confirms
+// with after payment succeeds: IRCTC for train, Amadeus-style GDS for
+// flight, a bus operator's GDS for bus. Real implementations differ per
+// mode; this single in-memory fake stands in for all three, with
+// per-mode injectable error rate and latency (see `make chaos`) so the
+// saga's degraded-provider path is exercised against something real
+// rather than mocked away.
+service SupplierSimService {
+  // Hold reserves seat_count seats with the provider before payment -
+  // only flight needs this (CLAUDE.md: "Provider owns it... No local
+  // lock possible. External hold"); bus and train lock a local seat row
+  // instead and never call this. Idempotent on booking_id, same pattern
+  // as Confirm: a retried Hold for the same booking_id after a
+  // successful hold replays the same hold_ref; a declined/errored
+  // attempt is not cached, so a retry gets a fresh chaos roll.
+  rpc Hold(HoldRequest) returns (HoldResponse);
+
+  // ReleaseHold releases a hold that never made it to Confirm (e.g.
+  // payment declined). Idempotent: releasing an already-released hold is
+  // a no-op success. Releasing a hold_ref that was never issued is
+  // NOT_FOUND.
+  rpc ReleaseHold(ReleaseHoldRequest) returns (ReleaseHoldResponse);
+
+  // Confirm is idempotent on booking_id: a retried Confirm for the same
+  // booking_id after a successful confirmation replays the same PNR
+  // rather than issuing a second one. A declined/errored attempt is not
+  // cached, so a retry gets a fresh attempt.
+  rpc Confirm(ConfirmRequest) returns (ConfirmResponse);
+
+  // Cancel is idempotent: cancelling an already-cancelled PNR is a no-op
+  // success. Cancelling a PNR that was never issued is NOT_FOUND.
+  rpc Cancel(CancelRequest) returns (CancelResponse);
+}
+
+enum Mode {
+  MODE_UNSPECIFIED = 0;
+  MODE_BUS = 1;
+  MODE_TRAIN = 2;
+  MODE_FLIGHT = 3;
+}
+
+message HoldRequest {
+  string booking_id = 1;
+  string trip_id = 2;
+  int32 seat_count = 3;
+  Mode mode = 4;
+}
+
+message HoldResponse {
+  string hold_ref = 1;
+}
+
+message ReleaseHoldRequest {
+  string hold_ref = 1;
+}
+
+message ReleaseHoldResponse {}
+
+message ConfirmRequest {
+  string booking_id = 1;
+  string trip_id = 2;
+  repeated string seat_nos = 3;
+  Mode mode = 4;
+}
+
+message ConfirmResponse {
+  string supplier_pnr = 1;
+}
+
+message CancelRequest {
+  string supplier_pnr = 1;
+}
+
+message CancelResponse {}

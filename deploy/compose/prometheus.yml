@@ -1,0 +1,35 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # Every Go service exposes RED metrics on /metrics at the port set in
+  # its <SERVICE>_METRICS_ADDR env var (see docker-compose.yml). One job
+  # per service keeps each series's "job" label meaningful in Grafana.
+  - job_name: gateway
+    static_configs:
+      - targets: ["gateway:9100"]
+  - job_name: catalog
+    static_configs:
+      - targets: ["catalog:9101"]
+  - job_name: inventory
+    static_configs:
+      - targets: ["inventory:9102"]
+  - job_name: payment
+    static_configs:
+      - targets: ["payment:9103"]
+  - job_name: supplier-sim
+    static_configs:
+      - targets: ["supplier-sim:9104"]
+  - job_name: booking
+    static_configs:
+      - targets: ["booking:9105"]
+  - job_name: search
+    static_configs:
+      - targets: ["search:9106"]
+  - job_name: notification
+    static_configs:
+      - targets: ["notification:9107"]

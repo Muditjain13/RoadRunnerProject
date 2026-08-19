@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: search
+  namespace: transport-app
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: search } }
+  template:
+    metadata: { labels: { app: search } }
+    spec:
+      containers:
+        - name: search
+          image: transport-app/search:latest
+          ports:
+            - { name: grpc, containerPort: 8086 }
+            - { name: metrics, containerPort: 9106 }
+          env:
+            - { name: SEARCH_GRPC_ADDR, value: ":8086" }
+            - { name: SEARCH_METRICS_ADDR, value: ":9106" }
+            - { name: CATALOG_GRPC_ADDR, value: "catalog:8081" }
+            - { name: SEARCH_REDIS_ADDR, value: "redis:6379" }
+            - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "jaeger:4317" }
+          readinessProbe:
+            grpc: { port: 8086 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            grpc: { port: 8086 }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 100m, memory: 64Mi }
+            limits: { memory: 256Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: search
+  namespace: transport-app
+spec:
+  selector: { app: search }
+  ports:
+    - { name: grpc, port: 8086, targetPort: 8086 }
+    - { name: metrics, port: 9106, targetPort: 9106 }
+---
+# Search fans out to 3 providers per request (errgroup.WithContext,
+# see internal/search/service) - CPU-bound relative to its request rate
+# more than most services here, and the first thing to feel a traffic
+# spike since every homepage load hits it. Good HPA candidate.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: search
+  namespace: transport-app
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: search }
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource: { name: cpu, target: { type: Utilization, averageUtilization: 70 } }

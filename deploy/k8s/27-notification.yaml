@@ -1,0 +1,47 @@
+# notification is a pure Kafka consumer (internal/notification/service) -
+# it runs no gRPC or HTTP server of its own, only the metrics endpoint
+# every service exposes. Probes check that the metrics HTTP server is up
+# as a liveness proxy; it can't distinguish "alive but consumer loop
+# wedged" from "healthy", which is a real limitation worth knowing about
+# rather than hiding behind a probe that looks the same either way.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification
+  namespace: transport-app
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: notification } }
+  template:
+    metadata: { labels: { app: notification } }
+    spec:
+      containers:
+        - name: notification
+          image: transport-app/notification:latest
+          ports:
+            - { name: metrics, containerPort: 9107 }
+          env:
+            - { name: KAFKA_BROKER, value: "kafka:9092" }
+            - { name: NOTIFICATION_METRICS_ADDR, value: ":9107" }
+            - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "jaeger:4317" }
+          readinessProbe:
+            tcpSocket: { port: 9107 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: { port: 9107 }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 50m, memory: 32Mi }
+            limits: { memory: 128Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification
+  namespace: transport-app
+spec:
+  selector: { app: notification }
+  ports:
+    - { name: metrics, port: 9107, targetPort: 9107 }

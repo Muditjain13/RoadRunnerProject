@@ -1,0 +1,137 @@
+syntax = "proto3";
+
+package booking.v1;
+
+option go_package = "github.com/Muditjain13/transport-app/api/proto/booking/v1;bookingv1";
+
+// BookingService orchestrates the saga: hold -> pay -> supplier confirm ->
+// ticket issued, with automatic compensation (refund, release, supplier
+// cancel) if payment succeeds but a later step fails.
+service BookingService {
+  // CreateBooking runs (or resumes) the saga synchronously and returns
+  // whatever state the booking reached. A non-OK status does not
+  // necessarily mean the booking was lost - see the returned Booking's
+  // status; a booking left Held or Paid due to an infra error is picked
+  // up later by the reconciliation sweeper.
+  rpc CreateBooking(CreateBookingRequest) returns (CreateBookingResponse);
+
+  // CancelBooking cancels a confirmed booking: refund, release seats,
+  // cancel the supplier PNR. Idempotent.
+  rpc CancelBooking(CancelBookingRequest) returns (CancelBookingResponse);
+
+  rpc GetBooking(GetBookingRequest) returns (GetBookingResponse);
+
+  // CreateTrainBooking is train mode's saga entry point: inventory picks
+  // seat_count seats of one class itself (see inventory's
+  // CreateHoldByClass), or queues a waitlist entry if the class is
+  // exhausted. Exactly one of the response's booking/waitlist_entry_id
+  // fields is set; a waitlisted outcome is not an error.
+  rpc CreateTrainBooking(CreateTrainBookingRequest) returns (CreateTrainBookingResponse);
+
+  // CreateBookingFromWaitlist claims a promoted waitlist entry and builds
+  // a booking from its hold, then runs the same saga CreateBooking uses.
+  // Idempotent by hold_id - safe to retry (e.g. a double-clicked pay-now).
+  rpc CreateBookingFromWaitlist(CreateBookingFromWaitlistRequest) returns (CreateBookingFromWaitlistResponse);
+
+  // CreateFlightBooking is flight mode's saga entry point: the pre-payment
+  // reservation happens entirely with the supplier (CLAUDE.md: "Provider
+  // owns it... External hold"), not via inventory. Unlike bus/train there
+  // is no waitlist outcome - the supplier either holds the seats or it
+  // doesn't, synchronously.
+  rpc CreateFlightBooking(CreateFlightBookingRequest) returns (CreateFlightBookingResponse);
+}
+
+enum Mode {
+  MODE_UNSPECIFIED = 0;
+  MODE_BUS = 1;
+  MODE_TRAIN = 2;
+  MODE_FLIGHT = 3;
+}
+
+enum Status {
+  STATUS_UNSPECIFIED = 0;
+  STATUS_PENDING = 1;
+  STATUS_HELD = 2;
+  STATUS_PAID = 3;
+  STATUS_CONFIRMED = 4;
+  STATUS_REFUNDING = 5;
+  STATUS_FAILED = 6;
+  STATUS_CANCELLED = 7;
+}
+
+message Booking {
+  string id = 1;
+  string pnr = 2;
+  string supplier_pnr = 3;
+  string user_id = 4;
+  string trip_id = 5;
+  Mode mode = 6;
+  repeated string seat_nos = 7;
+  int64 amount_paise = 8;
+  Status status = 9;
+  string failure_reason = 10;
+}
+
+message CreateBookingRequest {
+  string user_id = 1;
+  string trip_id = 2;
+  repeated string seat_nos = 3;
+  Mode mode = 4;
+  int64 amount_paise = 5;
+}
+
+message CreateBookingResponse {
+  Booking booking = 1;
+}
+
+message CancelBookingRequest {
+  string booking_id = 1;
+}
+
+message CancelBookingResponse {
+  Booking booking = 1;
+}
+
+message GetBookingRequest {
+  string booking_id = 1;
+}
+
+message GetBookingResponse {
+  Booking booking = 1;
+}
+
+message CreateTrainBookingRequest {
+  string user_id = 1;
+  string trip_id = 2;
+  string class_code = 3;
+  int32 seat_count = 4;
+  int64 amount_paise = 5;
+}
+
+message CreateTrainBookingResponse {
+  // Exactly one of these is set.
+  Booking booking = 1;
+  int64 waitlist_entry_id = 2;
+}
+
+message CreateBookingFromWaitlistRequest {
+  int64 waitlist_entry_id = 1;
+  string user_id = 2;
+  string trip_id = 3;
+  int64 amount_paise = 4;
+}
+
+message CreateBookingFromWaitlistResponse {
+  Booking booking = 1;
+}
+
+message CreateFlightBookingRequest {
+  string user_id = 1;
+  string trip_id = 2;
+  int32 seat_count = 3;
+  int64 amount_paise = 4;
+}
+
+message CreateFlightBookingResponse {
+  Booking booking = 1;
+}

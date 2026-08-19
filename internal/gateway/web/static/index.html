@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RoadRunner &mdash; Bus Tickets</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">Road<span>Runner</span></div>
+  <div class="user-box" id="userBox">
+    <span id="userLabel"></span>
+    <button id="signOutBtn" class="link-btn" hidden>sign out</button>
+  </div>
+</header>
+
+<main>
+  <section class="search-panel">
+    <h1>Where are you headed?</h1>
+    <form id="searchForm" class="search-form">
+      <div class="field">
+        <label for="origin">From</label>
+        <select id="origin" required></select>
+      </div>
+      <div class="swap">
+        <button type="button" id="swapBtn" title="Swap cities">&#8646;</button>
+      </div>
+      <div class="field">
+        <label for="dest">To</label>
+        <select id="dest" required></select>
+      </div>
+      <div class="field">
+        <label for="date">Date of journey</label>
+        <input type="date" id="date" required>
+      </div>
+      <div class="field mode-field">
+        <label>Mode</label>
+        <div class="mode-toggle" id="modeToggle">
+          <button type="button" class="mode-opt active" data-mode="any">Any</button>
+          <button type="button" class="mode-opt" data-mode="bus">Bus</button>
+          <button type="button" class="mode-opt" data-mode="train">Train</button>
+          <button type="button" class="mode-opt" data-mode="flight">Flight</button>
+        </div>
+      </div>
+      <button type="submit" class="primary-btn">Search trips</button>
+    </form>
+  </section>
+
+  <section id="statusArea" class="status-area" hidden></section>
+
+  <section id="resultsArea" class="results-area" hidden>
+    <div class="results-header">
+      <h2 id="resultsTitle"></h2>
+      <div id="degradedNotice" class="degraded-notice" hidden></div>
+    </div>
+    <div id="resultsList" class="results-list"></div>
+  </section>
+</main>
+
+<div id="bookingModal" class="modal-backdrop" hidden>
+  <div class="modal">
+    <button class="modal-close" id="modalCloseBtn">&times;</button>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<div id="signInModal" class="modal-backdrop" hidden>
+  <div class="modal small">
+    <h3>What should we call you?</h3>
+    <p class="muted">No password needed &mdash; this demo identifies you by name only.</p>
+    <form id="signInForm">
+      <input type="text" id="signInName" placeholder="Your name" autocomplete="off">
+      <button type="submit" id="signInBtn" class="primary-btn">Continue</button>
+    </form>
+  </div>
+</div>
+
+<div id="toast" class="toast" hidden></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

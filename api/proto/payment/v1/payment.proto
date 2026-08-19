@@ -1,0 +1,78 @@
+syntax = "proto3";
+
+package payment.v1;
+
+option go_package = "github.com/Muditjain13/transport-app/api/proto/payment/v1;paymentv1";
+
+service PaymentService {
+  // Charge is idempotent on idempotency_key: retrying with the same key
+  // replays the recorded outcome instead of charging twice. A gateway
+  // decline is a successful RPC returning status FAILED, not an error -
+  // the caller decides what a decline means for its own flow.
+  rpc Charge(ChargeRequest) returns (ChargeResponse);
+
+  // Refund is idempotent on idempotency_key. Fails with FAILED_PRECONDITION
+  // if the payment didn't succeed, or if the refund would exceed the
+  // amount actually charged (across all refunds on that payment).
+  rpc Refund(RefundRequest) returns (RefundResponse);
+
+  rpc GetPayment(GetPaymentRequest) returns (GetPaymentResponse);
+}
+
+enum PaymentStatus {
+  PAYMENT_STATUS_UNSPECIFIED = 0;
+  PAYMENT_STATUS_SUCCEEDED = 1;
+  PAYMENT_STATUS_FAILED = 2;
+}
+
+enum RefundStatus {
+  REFUND_STATUS_UNSPECIFIED = 0;
+  REFUND_STATUS_SUCCEEDED = 1;
+  REFUND_STATUS_FAILED = 2;
+}
+
+message Payment {
+  string id = 1;
+  string booking_id = 2;
+  string user_id = 3;
+  int64 amount_paise = 4;
+  PaymentStatus status = 5;
+  string idempotency_key = 6;
+}
+
+message Refund {
+  string id = 1;
+  string payment_id = 2;
+  int64 amount_paise = 3;
+  RefundStatus status = 4;
+  string idempotency_key = 5;
+}
+
+message ChargeRequest {
+  string idempotency_key = 1;
+  string booking_id = 2;
+  string user_id = 3;
+  int64 amount_paise = 4;
+}
+
+message ChargeResponse {
+  Payment payment = 1;
+}
+
+message RefundRequest {
+  string idempotency_key = 1;
+  string payment_id = 2;
+  int64 amount_paise = 3;
+}
+
+message RefundResponse {
+  Refund refund = 1;
+}
+
+message GetPaymentRequest {
+  string payment_id = 1;
+}
+
+message GetPaymentResponse {
+  Payment payment = 1;
+}

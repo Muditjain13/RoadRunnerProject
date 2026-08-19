@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment
+  namespace: transport-app
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: payment } }
+  template:
+    metadata: { labels: { app: payment } }
+    spec:
+      containers:
+        - name: payment
+          image: transport-app/payment:latest
+          ports:
+            - { name: grpc, containerPort: 8083 }
+            - { name: metrics, containerPort: 9103 }
+          env:
+            - name: PAYMENT_MYSQL_DSN
+              valueFrom: { secretKeyRef: { name: transport-app-db, key: PAYMENT_MYSQL_DSN } }
+            - { name: PAYMENT_GRPC_ADDR, value: ":8083" }
+            - { name: PAYMENT_METRICS_ADDR, value: ":9103" }
+            - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "jaeger:4317" }
+          readinessProbe:
+            grpc: { port: 8083 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            grpc: { port: 8083 }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 100m, memory: 64Mi }
+            limits: { memory: 256Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment
+  namespace: transport-app
+spec:
+  selector: { app: payment }
+  ports:
+    - { name: grpc, port: 8083, targetPort: 8083 }
+    - { name: metrics, port: 9103, targetPort: 9103 }

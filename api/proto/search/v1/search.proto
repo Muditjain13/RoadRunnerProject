@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+package search.v1;
+
+option go_package = "github.com/Muditjain13/transport-app/api/proto/search/v1;searchv1";
+
+import "google/protobuf/timestamp.proto";
+
+service SearchService {
+  // SearchTrips fans out to every registered provider (bus only in Phase
+  // 1) and returns whatever came back within the per-provider timeout.
+  // degraded_providers lists any provider that failed or timed out - an
+  // empty result with no degraded providers means "genuinely no service
+  // on this route," not a hidden failure.
+  rpc SearchTrips(SearchTripsRequest) returns (SearchTripsResponse);
+}
+
+enum Mode {
+  MODE_UNSPECIFIED = 0;
+  MODE_BUS = 1;
+  MODE_TRAIN = 2;
+  MODE_FLIGHT = 3;
+}
+
+message TripClass {
+  string code = 1;
+  int64 fare_paise = 2;
+  int32 capacity = 3;
+}
+
+message Trip {
+  string id = 1;
+  string route_id = 2;
+  string operator_id = 3;
+  Mode mode = 4;
+  string vehicle_number = 5;
+  google.protobuf.Timestamp departure_at = 6;
+  google.protobuf.Timestamp arrival_at = 7;
+  repeated TripClass classes = 8;
+  string operator_name = 9;
+}
+
+message SearchTripsRequest {
+  string origin_code = 1;
+  string dest_code = 2;
+  google.protobuf.Timestamp date = 3;
+  // modes restricts which providers are queried. Empty means every
+  // registered provider - unchanged default behavior.
+  repeated Mode modes = 4;
+}
+
+message SearchTripsResponse {
+  repeated Trip trips = 1;
+  repeated Mode degraded_providers = 2;
+}

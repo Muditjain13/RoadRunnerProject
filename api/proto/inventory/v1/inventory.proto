@@ -1,0 +1,141 @@
+syntax = "proto3";
+
+package inventory.v1;
+
+option go_package = "github.com/Muditjain13/transport-app/api/proto/inventory/v1;inventoryv1";
+
+import "google/protobuf/timestamp.proto";
+
+service InventoryService {
+  // CreateHold atomically holds every requested seat on a trip under one
+  // new hold, or fails the whole request with no partial holds.
+  rpc CreateHold(CreateHoldRequest) returns (CreateHoldResponse);
+
+  // ReleaseHold releases an active hold's seats back to available.
+  // Idempotent for already-released/expired holds.
+  rpc ReleaseHold(ReleaseHoldRequest) returns (ReleaseHoldResponse);
+
+  // ConfirmHold permanently books an active hold's seats. Called by the
+  // booking saga only after payment and supplier confirmation succeed.
+  rpc ConfirmHold(ConfirmHoldRequest) returns (ConfirmHoldResponse);
+
+  // CancelBooking releases previously booked seats, e.g. on cancellation.
+  rpc CancelBooking(CancelBookingRequest) returns (CancelBookingResponse);
+
+  // ListAvailableSeats is a read-only snapshot, not a reservation - the
+  // result can go stale immediately. Callers must still go through
+  // CreateHold to actually claim a seat.
+  rpc ListAvailableSeats(ListAvailableSeatsRequest) returns (ListAvailableSeatsResponse);
+
+  // CreateHoldByClass atomically either holds seat_count seats of one
+  // class on a trip (inventory picks which ones), or, if fewer are
+  // available, queues one waitlist entry instead - never a partial hold,
+  // and never an error for quota exhaustion. Exactly one of the response's
+  // hold/waitlist fields is set.
+  rpc CreateHoldByClass(CreateHoldByClassRequest) returns (CreateHoldByClassResponse);
+
+  // ClaimPromotedWaitlist returns a promoted waitlist entry's hold, so the
+  // caller can build a booking from it. Fails with a conflict if the
+  // entry isn't promoted yet or doesn't belong to user_id. Safe to call
+  // repeatedly - it does not mutate anything.
+  rpc ClaimPromotedWaitlist(ClaimPromotedWaitlistRequest) returns (ClaimPromotedWaitlistResponse);
+
+  // ListWaitlistByUser lists every waitlist entry (pending or promoted)
+  // for one user, newest first - backs a "my waitlist" view.
+  rpc ListWaitlistByUser(ListWaitlistByUserRequest) returns (ListWaitlistByUserResponse);
+}
+
+message CreateHoldRequest {
+  string trip_id = 1;
+  string user_id = 2;
+  repeated string seat_nos = 3;
+  int32 ttl_seconds = 4;
+}
+
+message CreateHoldResponse {
+  string hold_id = 1;
+  string trip_id = 2;
+  repeated string seat_nos = 3;
+  google.protobuf.Timestamp expires_at = 4;
+}
+
+message ReleaseHoldRequest {
+  string hold_id = 1;
+}
+
+message ReleaseHoldResponse {}
+
+message ConfirmHoldRequest {
+  string hold_id = 1;
+  string booking_id = 2;
+}
+
+message ConfirmHoldResponse {}
+
+message CancelBookingRequest {
+  string trip_id = 1;
+  string booking_id = 2;
+  repeated string seat_nos = 3;
+}
+
+message CancelBookingResponse {}
+
+message ListAvailableSeatsRequest {
+  string trip_id = 1;
+  string class_code = 2;
+}
+
+message ListAvailableSeatsResponse {
+  repeated string seat_nos = 1;
+}
+
+message CreateHoldByClassRequest {
+  string trip_id = 1;
+  string class_code = 2;
+  string user_id = 3;
+  int32 seat_count = 4;
+  int64 amount_paise = 5;
+  int32 ttl_seconds = 6;
+}
+
+message CreateHoldByClassResponse {
+  // Exactly one of these is set.
+  CreateHoldResponse hold = 1;
+  WaitlistEntry waitlist = 2;
+}
+
+message WaitlistEntry {
+  int64 id = 1;
+  string trip_id = 2;
+  string class_code = 3;
+  string user_id = 4;
+  int32 seat_count = 5;
+  int64 amount_paise = 6;
+  WaitlistStatus status = 7;
+  string promoted_hold_id = 8;
+}
+
+enum WaitlistStatus {
+  WAITLIST_STATUS_UNSPECIFIED = 0;
+  WAITLIST_STATUS_PENDING = 1;
+  WAITLIST_STATUS_PROMOTED = 2;
+  WAITLIST_STATUS_CANCELLED = 3;
+}
+
+message ClaimPromotedWaitlistRequest {
+  int64 waitlist_entry_id = 1;
+  string user_id = 2;
+}
+
+message ClaimPromotedWaitlistResponse {
+  string hold_id = 1;
+  repeated string seat_nos = 2;
+}
+
+message ListWaitlistByUserRequest {
+  string user_id = 1;
+}
+
+message ListWaitlistByUserResponse {
+  repeated WaitlistEntry entries = 1;
+}

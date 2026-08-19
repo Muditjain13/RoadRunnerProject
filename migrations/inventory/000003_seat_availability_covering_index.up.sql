@@ -1,0 +1,15 @@
+-- Covering index for the seat-availability query family: ListAvailableSeats
+-- and LockAvailableSeatsByClass both run
+--   WHERE trip_id = ? AND class_code = ? AND status = 'available'
+--   ORDER BY seat_no
+-- Without this index, MySQL can use the (trip_id, seat_no) primary key to
+-- narrow to one trip_id and get seat_no order for free, but still has to
+-- read every seat row of that trip to evaluate class_code/status and
+-- fetch seat_no - a "Using where" plan that touches the full row for
+-- every candidate. This index puts class_code and status into the key
+-- itself (as equality predicates, ahead of the sort column) and seat_no
+-- last, so the same WHERE+ORDER BY is satisfied entirely from the index -
+-- a true covering index, "Using index" in EXPLAIN, no row lookups at all.
+-- See docs/perf/seat-availability-index.md for before/after EXPLAIN and
+-- timing at the ~5.8M-row seeded volume.
+CREATE INDEX idx_seats_avail_by_class ON seats (trip_id, class_code, status, seat_no);

@@ -1,0 +1,60 @@
+# Single-instance MySQL for this portfolio deployment - a real production
+# cluster would use a managed service (RDS, Cloud SQL) or a proper
+# operator-managed StatefulSet with replication, not a bare Deployment
+# with one replica and no failover. Out of scope here: the interesting
+# engineering surface of this repo is the application layer above it.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+  namespace: transport-app
+spec:
+  replicas: 1
+  strategy: { type: Recreate } # single PVC, can't roll two pods at once
+  selector: { matchLabels: { app: mysql } }
+  template:
+    metadata: { labels: { app: mysql } }
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8.4
+          ports: [{ containerPort: 3306 }]
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom: { secretKeyRef: { name: transport-app-db, key: MYSQL_ROOT_PASSWORD } }
+            - name: MYSQL_DATABASE
+              value: inventory
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/mysql }
+          readinessProbe:
+            exec: { command: ["mysqladmin", "ping", "-h", "localhost", "-uroot", "-p$(MYSQL_ROOT_PASSWORD)"] }
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            exec: { command: ["mysqladmin", "ping", "-h", "localhost", "-uroot", "-p$(MYSQL_ROOT_PASSWORD)"] }
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          resources:
+            requests: { cpu: 250m, memory: 512Mi }
+            limits: { memory: 1Gi }
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: mysql-data }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-data
+  namespace: transport-app
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources: { requests: { storage: 10Gi } }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: transport-app
+spec:
+  selector: { app: mysql }
+  ports: [{ port: 3306, targetPort: 3306 }]

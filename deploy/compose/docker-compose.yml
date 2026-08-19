@@ -1,0 +1,228 @@
+name: transport-app
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: inventory
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./init/mysql:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: catalog
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Redpanda: single-binary, Kafka-API-compatible broker. No Zookeeper, no
+  # multi-container cluster to babysit for a local dev / portfolio setup.
+  # segmentio/kafka-go talks to it exactly as it would talk to Apache Kafka.
+  redpanda:
+    image: redpandadata/redpanda:v24.2.7
+    restart: unless-stopped
+    command:
+      - redpanda
+      - start
+      - --smp=1
+      - --memory=512M
+      - --overprovisioned
+      - --node-id=0
+      - --check=false
+      - --kafka-addr=PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr=PLAINTEXT://redpanda:9092
+    ports:
+      - "9092:9092"
+    volumes:
+      - redpanda-data:/var/lib/redpanda/data
+    healthcheck:
+      test: ["CMD", "rpk", "cluster", "health", "--exit-when-healthy"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.60
+    restart: unless-stopped
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686" # UI
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    restart: unless-stopped
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+
+  # --- application services -------------------------------------------
+  # Each builds from the shared root Dockerfile, selecting its cmd/
+  # entrypoint via the SERVICE build arg. Env vars mirror each service's
+  # envOr() defaults in cmd/<service>/main.go, swapped from localhost to
+  # the compose service DNS name.
+
+  catalog:
+    build: { context: ../.., dockerfile: Dockerfile, args: { SERVICE: catalog } }
+    restart: unless-stopped
+    environment:
+      CATALOG_MONGO_URI: mongodb://mongo:27017
+      CATALOG_GRPC_ADDR: ":8081"
+      CATALOG_METRICS_ADDR: ":9101"
+      OTEL_EXPORTER_OTLP_ENDPOINT: jaeger:4317
+    ports:
+      - "8081:8081"
+      - "9101:9101"
+    depends_on:
+      mongo: { condition: service_healthy }
+      jaeger: { condition: service_started }
+
+  inventory:
+    build: { context: ../.., dockerfile: Dockerfile, args: { SERVICE: inventory } }
+    restart: unless-stopped
+    environment:
+      INVENTORY_MYSQL_DSN: "root:root@tcp(mysql:3306)/inventory?parseTime=true"
+      INVENTORY_GRPC_ADDR: ":8082"
+      INVENTORY_METRICS_ADDR: ":9102"
+      OTEL_EXPORTER_OTLP_ENDPOINT: jaeger:4317
+    ports:
+      - "8082:8082"
+      - "9102:9102"
+    depends_on:
+      mysql: { condition: service_healthy }
+      jaeger: { condition: service_started }
+
+  payment:
+    build: { context: ../.., dockerfile: Dockerfile, args: { SERVICE: payment } }
+    restart: unless-stopped
+    environment:
+      PAYMENT_MYSQL_DSN: "root:root@tcp(mysql:3306)/payment?parseTime=true"
+      PAYMENT_GRPC_ADDR: ":8083"
+      PAYMENT_METRICS_ADDR: ":9103"
+      OTEL_EXPORTER_OTLP_ENDPOINT: jaeger:4317
+    ports:
+      - "8083:8083"
+      - "9103:9103"
+    depends_on:
+      mysql: { condition: service_healthy }
+      jaeger: { condition: service_started }
+
+  supplier-sim:
+    build: { context: ../.., dockerfile: Dockerfile, args: { SERVICE: supplier-sim } }
+    restart: unless-stopped
+    environment:
+      SUPPLIER_SIM_GRPC_ADDR: ":8084"
+      SUPPLIER_SIM_METRICS_ADDR: ":9104"
+      OTEL_EXPORTER_OTLP_ENDPOINT: jaeger:4317
+    ports:
+      - "8084:8084"
+      - "9104:9104"
+    depends_on:
+      jaeger: { condition: service_started }
+
+  search:
+    build: { context: ../.., dockerfile: Dockerfile, args: { SERVICE: search } }
+    restart: unless-stopped
+    environment:
+      SEARCH_GRPC_ADDR: ":8086"
+      SEARCH_METRICS_ADDR: ":9106"
+      CATALOG_GRPC_ADDR: catalog:8081
+      SEARCH_REDIS_ADDR: redis:6379
+      OTEL_EXPORTER_OTLP_ENDPOINT: jaeger:4317
+    ports:
+      - "8086:8086"
+      - "9106:9106"
+    depends_on:
+      catalog: { condition: service_started }
+      redis: { condition: service_healthy }
+      jaeger: { condition: service_started }
+
+  booking:
+    build: { context: ../.., dockerfile: Dockerfile, args: { SERVICE: booking } }
+    restart: unless-stopped
+    environment:
+      BOOKING_MYSQL_DSN: "root:root@tcp(mysql:3306)/booking?parseTime=true"
+      BOOKING_GRPC_ADDR: ":8085"
+      BOOKING_METRICS_ADDR: ":9105"
+      INVENTORY_GRPC_ADDR: inventory:8082
+      PAYMENT_GRPC_ADDR: payment:8083
+      SUPPLIER_SIM_GRPC_ADDR: supplier-sim:8084
+      KAFKA_BROKER: redpanda:9092
+      OTEL_EXPORTER_OTLP_ENDPOINT: jaeger:4317
+    ports:
+      - "8085:8085"
+      - "9105:9105"
+    depends_on:
+      mysql: { condition: service_healthy }
+      inventory: { condition: service_started }
+      payment: { condition: service_started }
+      supplier-sim: { condition: service_started }
+      redpanda: { condition: service_healthy }
+      jaeger: { condition: service_started }
+
+  gateway:
+    build: { context: ../.., dockerfile: Dockerfile, args: { SERVICE: gateway } }
+    restart: unless-stopped
+    environment:
+      GATEWAY_HTTP_ADDR: ":8080"
+      GATEWAY_METRICS_ADDR: ":9100"
+      SEARCH_GRPC_ADDR: search:8086
+      BOOKING_GRPC_ADDR: booking:8085
+      OTEL_EXPORTER_OTLP_ENDPOINT: jaeger:4317
+    ports:
+      - "8080:8080"
+      - "9100:9100"
+    depends_on:
+      search: { condition: service_started }
+      booking: { condition: service_started }
+      jaeger: { condition: service_started }
+
+  notification:
+    build: { context: ../.., dockerfile: Dockerfile, args: { SERVICE: notification } }
+    restart: unless-stopped
+    environment:
+      KAFKA_BROKER: redpanda:9092
+      NOTIFICATION_METRICS_ADDR: ":9107"
+      OTEL_EXPORTER_OTLP_ENDPOINT: jaeger:4317
+    ports:
+      - "9107:9107"
+    depends_on:
+      redpanda: { condition: service_healthy }
+      jaeger: { condition: service_started }
+
+volumes:
+  mysql-data:
+  mongo-data:
+  redpanda-data:

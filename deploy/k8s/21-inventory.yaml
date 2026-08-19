@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inventory
+  namespace: transport-app
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: inventory } }
+  template:
+    metadata: { labels: { app: inventory } }
+    spec:
+      containers:
+        - name: inventory
+          image: transport-app/inventory:latest
+          ports:
+            - { name: grpc, containerPort: 8082 }
+            - { name: metrics, containerPort: 9102 }
+          env:
+            - name: INVENTORY_MYSQL_DSN
+              valueFrom: { secretKeyRef: { name: transport-app-db, key: INVENTORY_MYSQL_DSN } }
+            - { name: INVENTORY_GRPC_ADDR, value: ":8082" }
+            - { name: INVENTORY_METRICS_ADDR, value: ":9102" }
+            - { name: KAFKA_BROKER, value: "kafka:9092" }
+            - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "jaeger:4317" }
+          readinessProbe:
+            grpc: { port: 8082 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            grpc: { port: 8082 }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 100m, memory: 64Mi }
+            limits: { memory: 256Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: inventory
+  namespace: transport-app
+spec:
+  selector: { app: inventory }
+  ports:
+    - { name: grpc, port: 8082, targetPort: 8082 }
+    - { name: metrics, port: 9102, targetPort: 9102 }

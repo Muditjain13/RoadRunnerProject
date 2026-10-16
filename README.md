@@ -47,7 +47,7 @@ flowchart TB
         gateway["gateway<br/>REST · auth · rate limit"]
     end
 
-    subgraph core["Core services (gRPC)"]
+    subgraph core[" "]
         search["search<br/>fan-out + Redis cache"]
         catalog["catalog<br/>routes · trips · fares"]
         inventory["inventory<br/>seat/berth locking · holds · waitlist"]

@@ -82,6 +82,23 @@ seats:
 ![Search, with a mode filter (bus/train/flight)](docs/screenshots/app-search.png)
 ![Seat selection for a bus trip](docs/screenshots/app-seat-selection.png)
 
+### Demo output
+
+Real output, not mocked. The compose smoke test from a green CI run
+([`docs/assets/smoke-run.txt`](docs/assets/smoke-run.txt)):
+
+```
+migrate finished
+seed finished
+search OK: trip=bus-PNQ-BOM-20261017T0600 class=sleeper fare_paise=22834
+seat: sleeper-1
+booking OK: {"id":"d1f25ae3-7955-4e91-b02d-002ac4b3bf02","status":"STATUS_CONFIRMED","seat_nos":["sleeper-1"],"amount_paise":22834}
+SMOKE PASS
+```
+
+The concurrency and hard-case tests are in
+[`docs/assets/concurrency-tests.txt`](docs/assets/concurrency-tests.txt).
+
 ## The five claims this repo has to prove
 
 | # | Claim | Where it's proven |

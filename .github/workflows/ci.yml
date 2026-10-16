@@ -74,3 +74,25 @@ jobs:
       - name: Tear down
         if: always()
         run: docker compose -f deploy/compose/docker-compose.yml down -v
+
+  demo-profile:
+    name: public demo profile (arm64)
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    env:
+      DEMO_DOMAIN: localhost
+      COMPOSE_ARGS: -f deploy/compose/docker-compose.yml -f deploy/oracle/docker-compose.demo.yml
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start the demo profile
+        run: docker compose $COMPOSE_ARGS up -d --build
+      - name: Smoke test through the loopback-bound gateway
+        run: GATEWAY=http://127.0.0.1:8080 bash scripts/smoke.sh
+      - name: Check exposed ports, HTTPS and write rate limit
+        run: bash scripts/check-demo-profile.sh
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose $COMPOSE_ARGS logs --no-color
+      - name: Tear down
+        if: always()
+        run: docker compose $COMPOSE_ARGS down -v

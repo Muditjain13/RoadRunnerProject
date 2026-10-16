@@ -12,11 +12,14 @@ services:
     volumes:
       - mysql-data:/var/lib/mysql
       - ./init/mysql:/docker-entrypoint-initdb.d
+    # Ping over TCP (127.0.0.1), not the Unix socket. The image first runs a
+    # temporary init server with networking disabled; a socket ping passes
+    # against it, so dependents would start before port 3306 is open.
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot"]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 20
 
   mongo:
     image: mongo:7

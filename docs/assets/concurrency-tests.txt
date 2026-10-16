@@ -1,0 +1,16 @@
+# Concurrency and failure tests, unit level (in-memory fakes, no Docker needed).
+# Reproduce: go test -count=1 -v -run 'ConcurrentSameSeat|NeverDoublePromotes|ConcurrentOverRefund|ConcurrentSameIdempotencyKey|OneProviderFailingDoesNotAffectOthers|HardCase' ./internal/...
+# The same races also run against real MySQL via testcontainers in CI
+# (see "Bugs caught by concurrency testing" in the README).
+--- PASS: TestCreateHold_ConcurrentSameSeat (0.00s)
+--- PASS: TestPromoteWaitlistHead_NeverDoublePromotes (0.00s)
+ok  	github.com/Muditjain13/transport-app/internal/inventory/service	0.474s
+--- PASS: TestCharge_ConcurrentSameIdempotencyKey (0.00s)
+--- PASS: TestRefund_ConcurrentOverRefund (0.00s)
+ok  	github.com/Muditjain13/transport-app/internal/payment/service	0.341s
+--- PASS: TestCreateFlightBooking_SupplierDeclinesConfirm_HardCase (0.00s)
+--- PASS: TestCreateBooking_SupplierDeclines_HardCase (0.00s)
+--- PASS: TestCreateBooking_InventoryConfirmFails_HardCase (0.00s)
+ok  	github.com/Muditjain13/transport-app/internal/booking/service	0.337s
+--- PASS: TestSearch_OneProviderFailingDoesNotAffectOthers (0.05s)
+ok  	github.com/Muditjain13/transport-app/internal/search/service	0.413s

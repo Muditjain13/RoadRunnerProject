@@ -1,0 +1,11 @@
+# Output of scripts/smoke.sh from a green CI run (GitHub Actions, ubuntu-latest).
+# Run: https://github.com/Muditjain13/RoadRunnerProject/actions/runs/38907274669
+waiting for one-shot job: migrate
+migrate finished
+waiting for one-shot job: seed
+seed finished
+waiting for gateway at http://localhost:8080
+search OK: trip=bus-PNQ-BOM-20261017T0600 class=sleeper fare_paise=22834
+seat: sleeper-1
+booking OK: {"id":"d1f25ae3-7955-4e91-b02d-002ac4b3bf02","status":"STATUS_CONFIRMED","seat_nos":["sleeper-1"],"amount_paise":22834}
+SMOKE PASS

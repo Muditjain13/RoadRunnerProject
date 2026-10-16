@@ -33,16 +33,62 @@ seats:
 
 ## Architecture
 
-See [`docs/architecture.md`](docs/architecture.md) for the full system
-diagram and the booking saga sequence diagram (Mermaid, renders inline on
-GitHub). Short version:
+The full system diagram and the booking saga sequence diagram live in
+[`docs/architecture.md`](docs/architecture.md). Solid arrows are
+synchronous (REST or gRPC), dotted arrows are asynchronous (Kafka).
 
-```
-browser -> gateway (REST) -> search / booking (gRPC)
-search   -> catalog (Mongo) + Redis cache, fans out to bus/train/flight providers
-booking  -> inventory (MySQL) + payment (MySQL) + supplier-sim, saga orchestrator + outbox
-inventory -> MySQL: seat/berth locks, holds, train waitlist
-notification -> Kafka consumer, fans out on booking events
+```mermaid
+flowchart TB
+    subgraph client["Client"]
+        browser["Browser<br/>(embedded frontend)"]
+    end
+
+    subgraph edge["Edge"]
+        gateway["gateway<br/>REST · auth · rate limit"]
+    end
+
+    subgraph core["Core services (gRPC)"]
+        search["search<br/>fan-out + Redis cache"]
+        catalog["catalog<br/>routes · trips · fares"]
+        inventory["inventory<br/>seat/berth locking · holds · waitlist"]
+        booking["booking<br/>saga orchestrator · outbox"]
+        payment["payment<br/>mock gateway · ledger"]
+        suppliersim["supplier-sim<br/>fakes IRCTC/Amadeus/bus GDS<br/>+ injectable chaos"]
+        notification["notification<br/>Kafka consumer"]
+    end
+
+    subgraph stores["Storage"]
+        mongo[("MongoDB<br/>catalog")]
+        mysql[("MySQL<br/>inventory · booking · payment")]
+        redis[("Redis<br/>search cache")]
+        kafka[("Kafka<br/>booking-events")]
+    end
+
+    browser -->|REST| gateway
+    gateway -->|gRPC| search
+    gateway -->|gRPC| booking
+    gateway -->|gRPC| inventory
+
+    search -->|gRPC| catalog
+    search --> redis
+    catalog --> mongo
+
+    booking -->|gRPC| inventory
+    booking -->|gRPC| payment
+    booking -->|gRPC| suppliersim
+    booking --> mysql
+    inventory --> mysql
+    payment --> mysql
+
+    booking -.->|outbox relay| kafka
+    inventory -.->|outbox relay: seats freed| kafka
+    kafka -.-> notification
+    kafka -.->|waitlist promotion| inventory
+
+    classDef svc fill:#1a1f36,color:#fff,stroke:#2b6bff
+    classDef store fill:#2b3563,color:#fff,stroke:#6b7280
+    class gateway,search,catalog,inventory,booking,payment,suppliersim,notification svc
+    class mongo,mysql,redis,kafka store
 ```
 
 **Why two databases**, in one sentence each: MySQL holds seats, holds,

@@ -250,7 +250,7 @@ services.
 ```bash
 make up            # docker compose up, all services + infra, seeded
 make seed          # ~5.7M seats, ~20M booking events, 10 cities, deterministic
-make test          # go test ./...
+make test          # go test -race ./...
 make chaos         # supplier-sim with 40% flight error rate + 2s p99 latency
 ```
 
@@ -268,18 +268,15 @@ that's inference from the code rather than something actually observed.
 
 ### Environment note
 
-This project was built and verified end-to-end in a sandbox with no
-Docker, no WSL2, and no C compiler - meaning `testcontainers-go`
-integration tests and `go test -race` could not actually be executed
-here, only written and compiled. MySQL and MongoDB ran as native Windows
-processes instead. Every functional claim in this README (the hard case,
-no-double-booking under concurrency, the waitlist promotion race, the
-perf numbers, the dashboard) was verified against those real, live,
-native-process services - not mocked - just not through the
-containerized path `make up`/`make test-int` describe. Whoever picks
-this up next on a machine with Docker + a C toolchain should be able to
-run `make up && make test-int` and confirm the containerized path
-matches; nothing in the design assumes native processes specifically.
+Every push runs two [CI](.github/workflows/ci.yml) jobs on GitHub Actions:
+build, `go vet` and `go test -race` with coverage, and the full
+`testcontainers-go` integration suite against real MySQL containers. The
+project was originally built in a sandbox with no Docker and no C
+compiler, so the functional claims, the perf numbers and the dashboard
+below were first verified against native MySQL/MongoDB processes. The
+first CI run of the integration suite then caught two real concurrency
+bugs in `payment` (see
+[Bugs caught by concurrency testing](#bugs-caught-by-concurrency-testing)).
 
 ## Build history
 
@@ -314,5 +311,4 @@ Said plainly rather than left for someone to discover:
   written and unit-tested, but the consumer side wasn't exercised live in
   this session (matches its own tolerant design: a missing broker never
   crashes the producer side, per every service's Kafka wrapper).
-- `go test -race` and the `testcontainers-go` integration suite are
-  written but unexecuted here - see the [environment note](#environment-note).
+- `make up` (docker compose) is not yet covered by CI.

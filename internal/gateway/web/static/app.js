@@ -497,7 +497,7 @@ async function confirmBooking() {
 
   const btn = document.getElementById("confirmBookBtn");
   btn.disabled = true;
-  btn.textContent = "Booking&hellip;";
+  btn.textContent = "Booking…";
 
   const amountPaise = b.selected.length * b.cls.fare_paise;
   try {
@@ -631,7 +631,7 @@ async function confirmTrainBooking(seatCount) {
 
   const btn = document.getElementById("confirmTrainBookBtn");
   btn.disabled = true;
-  btn.textContent = "Booking&hellip;";
+  btn.textContent = "Booking…";
 
   const amountPaise = seatCount * b.cls.fare_paise;
   try {
@@ -715,7 +715,7 @@ async function confirmFlightBooking(seatCount) {
 
   const btn = document.getElementById("confirmFlightBookBtn");
   btn.disabled = true;
-  btn.textContent = "Booking&hellip;";
+  btn.textContent = "Booking…";
 
   const amountPaise = seatCount * b.cls.fare_paise;
   try {
@@ -769,7 +769,7 @@ function renderWaitlistRow(entry) {
   if (payBtn) {
     payBtn.addEventListener("click", async () => {
       payBtn.disabled = true;
-      payBtn.textContent = "Paying&hellip;";
+      payBtn.textContent = "Paying…";
       try {
         const booking = await claimWaitlistEntry(payBtn.dataset.id, payBtn.dataset.trip, parseInt(payBtn.dataset.amount, 10));
         if (booking && booking.id) addMyBooking(booking.id);

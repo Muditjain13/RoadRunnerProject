@@ -409,8 +409,3 @@ Said plainly rather than left for someone to discover:
 - The compose stack runs the Kafka-compatible broker and `notification`, but
   the smoke test only checks search and booking through the gateway. It does
   not assert that a booking event reaches the consumer.
-- Inventory's Kafka promotion consumer does not reconnect. If the broker is
-  unreachable, `RunPromotionConsumer` returns the fetch error, the service
-  logs "promotion consumer failed" and keeps serving requests, but
-  Kafka-driven waitlist promotion stops until the service restarts. Compose
-  avoids the startup case by waiting for the broker to be healthy.

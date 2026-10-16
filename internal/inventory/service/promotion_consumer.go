@@ -8,7 +8,13 @@ import (
 	"sync"
 
 	kafkago "github.com/segmentio/kafka-go"
+
+	appkafka "github.com/Muditjain13/transport-app/pkg/kafka"
 )
+
+// fetchBackoff is the retry schedule when the broker is unreachable. A var so
+// tests can shrink it.
+var fetchBackoff = appkafka.Backoff{Initial: appkafka.DefaultBackoffInitial, Max: appkafka.DefaultBackoffMax}
 
 // PromotionMessageSource is the subset of *kafka.Reader the promotion
 // consumer depends on - identical shape to notification's MessageSource
@@ -44,8 +50,9 @@ func (s *Service) RunPromotionConsumer(ctx context.Context, source PromotionMess
 		wg.Wait()
 	}()
 
+	backoff := fetchBackoff
 	for {
-		msg, err := source.FetchMessage(ctx)
+		msg, err := appkafka.FetchWithRetry(ctx, source.FetchMessage, &backoff, logger)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
 				return nil

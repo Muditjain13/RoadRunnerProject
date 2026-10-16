@@ -40,6 +40,44 @@ seats:
 | 4 | Graceful degradation when a provider is slow or down | `errgroup`-based fan-out in `search` never lets one slow provider block the others (`TestSearch_OneProviderFailingDoesNotAffectOthers`); circuit breaker on every flight supplier call (`pkg/circuitbreaker`, `make chaos`) |
 | 5 | Relational query performance is measured, not assumed | `docs/perf/` - real EXPLAIN plans and timings at ~5.7M seats and ~20M events, not estimates |
 
+## Engineering highlights
+
+All numbers below come from the code, the tests or the checked-in
+benchmarks in [`docs/perf/`](docs/perf/).
+
+- **8 services, 6 gRPC contracts, 3 transport modes** (bus, train,
+  flight) behind one saga that never branches on mode.
+- **138 test functions**, 9 of them integration tests against real MySQL
+  (`testcontainers-go`). CI runs the unit suite with `-race` and the
+  integration suite on every push.
+- **Contention tests at 50 and 100 goroutines**: 100 goroutines on one
+  seat (`TestCreateHold_NoDoubleBooking_RealMySQL`), 100 concurrent
+  bookings of one seat through the whole saga
+  (`TestBusSaga_ConcurrentBookings_NoDoubleBooking`), 50 goroutines
+  racing a waitlist promotion (`TestPromoteWaitlistHead_NeverDoublePromotes`).
+- **Query performance measured at volume**: 5,729,820 seeded seats and
+  19,999,992 booking events. Covering index: `Handler_read_next`
+  1224 to 648. Monthly partitioning: 9.75s to 2.75s (3.5x).
+- **2 ADRs** ([sweeper](docs/adr/0001-hold-expiry-sweeper.md),
+  [resumable saga](docs/adr/0002-resumable-saga.md)) and a checked-in
+  Grafana dashboard plus Kubernetes manifests.
+
+### Bugs caught by concurrency testing
+
+The unit tests use an in-memory fake repo behind a single mutex, so they
+cannot see database isolation effects. The first CI run of the integration
+suite against real MySQL failed two payment tests. Both are real bugs, now
+fixed, and both tests stay in the suite as regression tests.
+
+| | Refund over-refund | Charge duplicate-key race |
+|---|---|---|
+| Regression test | [`TestRefund_ConcurrentOverRefund_RealMySQL`](internal/payment/repo/mysql_integration_test.go) | [`TestCharge_ConcurrentSameIdempotencyKey_RealMySQL`](internal/payment/repo/mysql_integration_test.go) |
+| What went wrong | 100 goroutines each refunded the full amount and 11 succeeded | 100 goroutines charged with one idempotency key and 10 got a raw `Duplicate entry` error |
+| Before | 11 succeeded, 89 conflicts | 10 of 100 callers got an error |
+| After | 1 succeeded, 99 conflicts | 0 errors, all 100 callers get the same payment |
+| Root cause | A plain read before the row lock pinned the REPEATABLE READ snapshot, so the refund sum missed concurrent commits | Check-then-insert race; the unique index blocked the second charge but the loser was not replayed the winner's row |
+| Fix | Take `FOR UPDATE` first, then read ([`fed9ece`](https://github.com/Muditjain13/RoadRunnerProject/commit/fed9ece)) | Map error 1062 and retry once in a fresh transaction ([`15659bd`](https://github.com/Muditjain13/RoadRunnerProject/commit/15659bd)) |
+
 ## Architecture
 
 The full system diagram and the booking saga sequence diagram live in

@@ -149,6 +149,7 @@ services:
       INVENTORY_MYSQL_DSN: "root:root@tcp(mysql:3306)/inventory?parseTime=true"
       INVENTORY_GRPC_ADDR: ":8082"
       INVENTORY_METRICS_ADDR: ":9102"
+      KAFKA_BROKER: redpanda:9092
       OTEL_EXPORTER_OTLP_ENDPOINT: jaeger:4317
     ports:
       - "8082:8082"
@@ -156,6 +157,7 @@ services:
     depends_on:
       migrate: { condition: service_completed_successfully }
       mysql: { condition: service_healthy }
+      redpanda: { condition: service_healthy }
       jaeger: { condition: service_started }
 
   payment:
@@ -236,6 +238,7 @@ services:
       GATEWAY_METRICS_ADDR: ":9100"
       SEARCH_GRPC_ADDR: search:8086
       BOOKING_GRPC_ADDR: booking:8085
+      INVENTORY_GRPC_ADDR: inventory:8082
       OTEL_EXPORTER_OTLP_ENDPOINT: jaeger:4317
     ports:
       - "8080:8080"
@@ -243,6 +246,7 @@ services:
     depends_on:
       search: { condition: service_started }
       booking: { condition: service_started }
+      inventory: { condition: service_started }
       jaeger: { condition: service_started }
 
   notification:

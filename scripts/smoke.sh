@@ -41,6 +41,18 @@ for _ in $(seq 1 60); do
 done
 curl -fs "$GATEWAY/healthz" >/dev/null || fail "gateway never became healthy"
 
+# 0. The UI is served by the gateway on the same origin and uses only
+# relative URLs, so it works unchanged behind any public host name.
+for p in / /static/app.js /static/style.css; do
+  code="$(curl -s -o /dev/null -w '%{http_code}' "$GATEWAY$p")"
+  [[ "$code" == "200" ]] || fail "UI asset $p returned HTTP $code"
+done
+curl -s "$GATEWAY/" | grep -q "RoadRunner" || fail "index page does not look like the RoadRunner UI"
+if curl -s "$GATEWAY/static/app.js" | grep -nE 'https?://'; then
+  fail "UI hardcodes an absolute URL, it must use relative paths"
+fi
+echo "UI served OK, relative URLs only"
+
 date_str="$(date -u -d tomorrow +%F)"
 
 # 1. Search: find a bus trip on any seeded route.

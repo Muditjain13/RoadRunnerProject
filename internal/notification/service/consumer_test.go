@@ -162,3 +162,93 @@ func TestConsumer_StopsOnContextCancel(t *testing.T) {
 		t.Fatal("Run() did not return after context cancellation")
 	}
 }
+
+// flakySource fails the first `failures` fetches like an unreachable broker,
+// then behaves like fakeSource.
+type flakySource struct {
+	fakeSource
+	failures int
+	mu2      sync.Mutex
+	calls    int
+}
+
+func (f *flakySource) FetchMessage(ctx context.Context) (kafkago.Message, error) {
+	f.mu2.Lock()
+	f.calls++
+	failing := f.calls <= f.failures
+	f.mu2.Unlock()
+	if failing {
+		return kafkago.Message{}, errors.New("dial tcp: connection refused")
+	}
+	return f.fakeSource.FetchMessage(ctx)
+}
+
+func (f *flakySource) fetchCalls() int {
+	f.mu2.Lock()
+	defer f.mu2.Unlock()
+	return f.calls
+}
+
+func shrinkBackoff(t *testing.T) {
+	t.Helper()
+	old := fetchBackoff
+	fetchBackoff.Initial, fetchBackoff.Max = time.Millisecond, 4*time.Millisecond
+	t.Cleanup(func() { fetchBackoff = old })
+}
+
+// TestConsumer_SurvivesBrokerOutageAtStartup is the regression test for the
+// consumer exiting on its first fetch error: it must keep retrying and then
+// process messages once the broker is reachable.
+func TestConsumer_SurvivesBrokerOutageAtStartup(t *testing.T) {
+	shrinkBackoff(t)
+	src := &flakySource{
+		fakeSource: fakeSource{messages: []kafkago.Message{{Value: []byte(`{"booking_id":"b1","status":"confirmed"}`)}}},
+		failures:   3,
+	}
+	notifier := &fakeNotifier{}
+	svc := NewService(notifier, NewMetrics(prometheus.NewRegistry()), testLogger())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- svc.Run(ctx, src, 1) }()
+
+	waitFor(t, 2*time.Second, func() bool { return notifier.callCount() == 1 })
+	waitFor(t, 2*time.Second, func() bool { return src.committedCount() == 1 })
+	if src.fetchCalls() < 4 {
+		t.Errorf("fetch calls = %d, want at least 4 (3 failures then a success)", src.fetchCalls())
+	}
+
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Errorf("Run() error = %v, want nil on clean shutdown", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Run did not stop after cancel")
+	}
+}
+
+func TestConsumer_StopsOnCancelWhileBrokerDown(t *testing.T) {
+	old := fetchBackoff
+	fetchBackoff.Initial, fetchBackoff.Max = time.Minute, time.Minute
+	t.Cleanup(func() { fetchBackoff = old })
+
+	src := &flakySource{failures: 1 << 30}
+	svc := NewService(&fakeNotifier{}, NewMetrics(prometheus.NewRegistry()), testLogger())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- svc.Run(ctx, src, 1) }()
+	waitFor(t, time.Second, func() bool { return src.fetchCalls() >= 1 })
+
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Errorf("Run() error = %v, want nil on clean shutdown", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Run did not stop while sleeping in backoff")
+	}
+}

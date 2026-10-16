@@ -9,6 +9,8 @@ import (
 	"time"
 
 	kafkago "github.com/segmentio/kafka-go"
+
+	appkafka "github.com/Muditjain13/transport-app/pkg/kafka"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -17,6 +19,10 @@ import (
 var tracer = otel.Tracer("notification")
 
 const dedupTTL = 10 * time.Minute
+
+// fetchBackoff is the retry schedule when the broker is unreachable. A var so
+// tests can shrink it.
+var fetchBackoff = appkafka.Backoff{Initial: appkafka.DefaultBackoffInitial, Max: appkafka.DefaultBackoffMax}
 
 // MessageSource is the subset of *kafka.Reader this service depends on -
 // small enough to fake in tests without a real Kafka broker. Fetch/Commit
@@ -61,8 +67,9 @@ func (s *Service) Run(ctx context.Context, source MessageSource, workers int) er
 		wg.Wait()
 	}()
 
+	backoff := fetchBackoff
 	for {
-		msg, err := source.FetchMessage(ctx)
+		msg, err := appkafka.FetchWithRetry(ctx, source.FetchMessage, &backoff, s.logger)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
 				return nil

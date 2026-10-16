@@ -55,6 +55,25 @@ func (s *Service) Charge(ctx context.Context, idempotencyKey, bookingID, userID 
 		return Payment{}, fmt.Errorf("charge: amountPaise must be positive")
 	}
 
+	// Two callers racing on the same key both miss the lookup below; the
+	// unique index lets exactly one insert win and the loser gets
+	// ErrAlreadyExists. Retry once in a fresh transaction (a new snapshot),
+	// where the winner's row is visible and replays as an idempotent hit.
+	var result Payment
+	var err error
+	for attempt := 0; attempt < 2; attempt++ {
+		result, err = s.charge(ctx, idempotencyKey, bookingID, userID, amountPaise)
+		if !errors.Is(err, apperrors.ErrAlreadyExists) {
+			break
+		}
+	}
+	if err != nil {
+		return Payment{}, err
+	}
+	return result, nil
+}
+
+func (s *Service) charge(ctx context.Context, idempotencyKey, bookingID, userID string, amountPaise money.Paise) (Payment, error) {
 	var result Payment
 	err := s.repo.WithinTx(ctx, func(ctx context.Context, tx TxRepository) error {
 		existing, err := tx.GetPaymentByIdempotencyKey(ctx, idempotencyKey)

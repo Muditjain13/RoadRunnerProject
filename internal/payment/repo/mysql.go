@@ -7,11 +7,16 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/go-sql-driver/mysql"
+
 	"github.com/Muditjain13/transport-app/internal/payment/repo/sqlcgen"
 	"github.com/Muditjain13/transport-app/internal/payment/service"
 	apperrors "github.com/Muditjain13/transport-app/pkg/errors"
 	"github.com/Muditjain13/transport-app/pkg/money"
 )
+
+// mysqlErrDupEntry is MySQL error 1062, a unique-key violation.
+const mysqlErrDupEntry = 1062
 
 type MySQLRepo struct {
 	db *sql.DB
@@ -91,6 +96,10 @@ func (t *mysqlTx) InsertPayment(ctx context.Context, p service.Payment) error {
 		IdempotencyKey: p.IdempotencyKey,
 	})
 	if err != nil {
+		var myErr *mysql.MySQLError
+		if errors.As(err, &myErr) && myErr.Number == mysqlErrDupEntry {
+			return fmt.Errorf("insert payment: %w", apperrors.ErrAlreadyExists)
+		}
 		return fmt.Errorf("insert payment: %w", err)
 	}
 	return nil

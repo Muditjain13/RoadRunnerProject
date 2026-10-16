@@ -8,6 +8,7 @@
 ![Kafka](https://img.shields.io/badge/Kafka-events-231F20?logo=apachekafka&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-compose-2496ED?logo=docker&logoColor=white)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/Muditjain13/RoadRunnerProject)
 
 A multi-modal (bus, train, flight) travel booking backend in Go, built as
 a portfolio piece demonstrating distributed-systems engineering:
@@ -47,9 +48,14 @@ bus, train and flight catalog). When `docker compose ... ps -a seed` shows
 `make up` is an optional shortcut for the same compose command. Stop and wipe
 everything with `docker compose -f deploy/compose/docker-compose.yml down -v`.
 
-CI runs this exact flow on every push ([`scripts/smoke.sh`](scripts/smoke.sh)):
-build the stack, wait for `migrate` and `seed`, then make a real search and a
-real booking through the gateway.
+CI runs this exact flow on every push, on both amd64 and arm64
+([`scripts/smoke.sh`](scripts/smoke.sh)): build the stack, wait for `migrate`
+and `seed`, make a real search and booking through the gateway, then book a seat
+through the web UI in headless Chromium ([`test/e2e`](test/e2e)).
+
+**No Docker on your machine?** Use the Codespaces badge above. The dev container
+installs Go, Node, `jq` and Docker-in-Docker, and forwards the web app (8080) and
+Jaeger (16686), so the same compose command works there.
 
 ### Try it
 
@@ -127,6 +133,10 @@ benchmarks in [`docs/perf/`](docs/perf/).
 - **Query performance measured at volume**: 5,729,820 seeded seats and
   19,999,992 booking events. Covering index: `Handler_read_next`
   1224 to 648. Monthly partitioning: 9.75s to 2.75s (3.5x).
+- **CI on every push, 5 jobs**: `go test -race` with coverage, integration
+  tests against real MySQL, the full compose stack on amd64 and on arm64 with a
+  real booking through the UI in headless Chromium, and the public-demo profile
+  (only ports 80 and 443 exposed, HTTPS through Caddy, write rate limit).
 - **2 ADRs** ([sweeper](docs/adr/0001-hold-expiry-sweeper.md),
   [resumable saga](docs/adr/0002-resumable-saga.md)) and a checked-in
   Grafana dashboard plus Kubernetes manifests.
@@ -409,3 +419,25 @@ Said plainly rather than left for someone to discover:
 - The compose stack runs the Kafka-compatible broker and `notification`, but
   the smoke test only checks search and booking through the gateway. It does
   not assert that a booking event reaches the consumer.
+
+## Roadmap
+
+Most valuable first.
+
+1. **Live demo.** The Oracle Always Free plan is written
+   ([`docs/deploy-oracle.md`](docs/deploy-oracle.md)) and its compose profile is
+   checked in CI on arm64. What is left is creating the VM, a host name and the
+   nightly reset cron entry.
+2. **Publish multi-arch images to GHCR on tag.** Closes the first known gap,
+   gives the Kubernetes manifests images to point at, and turns a VM deploy
+   into a pull instead of a build.
+3. **Assert the event path in CI.** After a booking, check that `notification`
+   consumed the booking event. Closes the second known gap.
+4. **Prove the hard case on the live stack in CI.** A compose override that forces
+   supplier declines, asserting the payment is charged and then refunded. Today
+   it is proven with fakes and a one-off live run.
+5. **A real load baseline.** `make load` points at `test/load/*.js`, which does
+   not exist yet. Write k6 scripts for search and booking and record the numbers
+   next to the other benchmarks in `docs/perf/`.
+6. **Signed tokens instead of name-only bearer auth.** The gateway middleware
+   seam is already there; this swaps what sits behind it.

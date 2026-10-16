@@ -88,6 +88,39 @@ services:
     ports:
       - "9090:9090"
 
+  # --- one-shot jobs ---------------------------------------------------
+  # Services do not run migrations themselves, so a fresh stack needs this
+  # job to create the tables. It exits 0 when done; the services that use
+  # MySQL wait for it with service_completed_successfully.
+  migrate:
+    image: migrate/migrate:v4.17.0
+    volumes:
+      - ../../migrations:/migrations:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        for svc in inventory booking payment; do
+          echo "migrating $$svc"
+          migrate -path /migrations/$$svc -database "mysql://root:root@tcp(mysql:3306)/$$svc" up
+        done
+    depends_on:
+      mysql: { condition: service_healthy }
+
+  # Seeds the catalog (MongoDB) and bus/train seats (MySQL) with the small
+  # profile so a fresh stack has trips to search and seats to book. Run the
+  # full profile (~5.7M seats) with `make seed` instead.
+  seed:
+    build: { context: ../.., dockerfile: Dockerfile, args: { SERVICE: seed } }
+    restart: "no"
+    command: ["--profile=small"]
+    environment:
+      CATALOG_MONGO_URI: mongodb://mongo:27017
+      INVENTORY_MYSQL_DSN: "root:root@tcp(mysql:3306)/inventory?parseTime=true"
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      mongo: { condition: service_healthy }
+
   # --- application services -------------------------------------------
   # Each builds from the shared root Dockerfile, selecting its cmd/
   # entrypoint via the SERVICE build arg. Env vars mirror each service's
@@ -121,6 +154,7 @@ services:
       - "8082:8082"
       - "9102:9102"
     depends_on:
+      migrate: { condition: service_completed_successfully }
       mysql: { condition: service_healthy }
       jaeger: { condition: service_started }
 
@@ -136,6 +170,7 @@ services:
       - "8083:8083"
       - "9103:9103"
     depends_on:
+      migrate: { condition: service_completed_successfully }
       mysql: { condition: service_healthy }
       jaeger: { condition: service_started }
 
@@ -185,6 +220,7 @@ services:
       - "8085:8085"
       - "9105:9105"
     depends_on:
+      migrate: { condition: service_completed_successfully }
       mysql: { condition: service_healthy }
       inventory: { condition: service_started }
       payment: { condition: service_started }

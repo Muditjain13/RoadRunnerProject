@@ -5,9 +5,10 @@
 # gateway. Exits non-zero on the first failure.
 set -euo pipefail
 
-COMPOSE_FILE="${COMPOSE_FILE:-deploy/compose/docker-compose.yml}"
+COMPOSE_ARGS="${COMPOSE_ARGS:--f deploy/compose/docker-compose.yml}"
 GATEWAY="${GATEWAY:-http://localhost:8080}"
-compose() { docker compose -f "$COMPOSE_FILE" "$@"; }
+# shellcheck disable=SC2086
+compose() { docker compose $COMPOSE_ARGS "$@"; }
 
 fail() { echo "SMOKE FAIL: $*" >&2; exit 1; }
 

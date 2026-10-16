@@ -22,6 +22,58 @@ in about 15 minutes. If you're skimming, read the five claims below, then
 [the booking saga](docs/architecture.md#the-booking-saga), then whichever
 `docs/adr/` or `docs/perf/` page matches what you're curious about.
 
+## Quick start
+
+You need Docker with Compose v2. One command builds and starts everything:
+
+```bash
+git clone https://github.com/Muditjain13/RoadRunnerProject.git
+cd RoadRunnerProject
+docker compose -f deploy/compose/docker-compose.yml up -d --build
+```
+
+The first run builds the Go services and pulls the infrastructure images, so
+give it a few minutes. Two one-shot jobs run on startup: `migrate` applies the
+SQL migrations, then `seed` loads the small profile (891,666 seats plus the
+bus, train and flight catalog). When `docker compose ... ps -a seed` shows
+`Exited (0)`, the stack is ready:
+
+| What | Where |
+|---|---|
+| Web app and REST API | http://localhost:8080 |
+| Jaeger traces | http://localhost:16686 |
+| Prometheus | http://localhost:9090 |
+
+`make up` is an optional shortcut for the same compose command. Stop and wipe
+everything with `docker compose -f deploy/compose/docker-compose.yml down -v`.
+
+CI runs this exact flow on every push ([`scripts/smoke.sh`](scripts/smoke.sh)):
+build the stack, wait for `migrate` and `seed`, then make a real search and a
+real booking through the gateway.
+
+### Try it
+
+These examples need `curl` and `jq`.
+
+```bash
+BASE=http://localhost:8080
+DATE=$(date -u -d tomorrow +%F)   # macOS: date -u -v+1d +%F
+
+# 1. Search bus trips from Pune to Mumbai
+TRIP=$(curl -s "$BASE/v1/search?origin=PNQ&dest=BOM&date=$DATE&mode=bus" | jq -c '.trips[0]')
+ID=$(jq -r .id <<<"$TRIP"); CLASS=$(jq -r '.classes[0].code' <<<"$TRIP"); FARE=$(jq -r '.classes[0].fare_paise' <<<"$TRIP")
+
+# 2. Pick a free seat
+SEAT=$(curl -s "$BASE/v1/trips/$ID/seats?class=$CLASS" | jq -r '.seat_nos[0]')
+
+# 3. Book it (runs the whole saga: hold, pay, supplier confirm)
+curl -s -X POST "$BASE/v1/bookings"   -H 'Authorization: Bearer demo-user' -H 'Content-Type: application/json'   -d "{\"trip_id\":\"$ID\",\"seat_nos\":[\"$SEAT\"],\"amount_paise\":$FARE}"
+```
+
+A successful booking returns HTTP 201 with `"status":"STATUS_CONFIRMED"`. The
+bearer token is just a caller-supplied user id, since this project has no
+identity service. The full dataset (about 5.7M seats) is `make seed`.
+
 ## What it looks like
 
 A real, running app - search across bus/train/flight, pick a mode, pick
@@ -286,23 +338,16 @@ services.
 ## Running it
 
 ```bash
-make up            # docker compose up, all services + infra, seeded
+make up            # docker compose up, all services + infra, small seed
 make seed          # ~5.7M seats, ~20M booking events, 10 cities, deterministic
 make test          # go test -race ./...
 make chaos         # supplier-sim with 40% flight error rate + 2s p99 latency
 ```
 
-`make up` is the reference path and hasn't been re-verified against a
-fresh Docker host from this exact commit - see the
-[environment note](#environment-note). Everything described in this
-README (the hard case, the perf numbers, the dashboard) was verified
-running the same binaries as native Windows processes against native
-MySQL/MongoDB, not through docker-compose, because no Docker was
-available in the sandbox this was built in. The compose file and
-Dockerfile are real and match every service's actual env vars (see
-`deploy/k8s/`'s manifests, generated from the same source of truth), but
-"docker compose up and it just works" is the one thing in this README
-that's inference from the code rather than something actually observed.
+`make up` runs the same compose stack as the [Quick start](#quick-start),
+which CI builds and exercises on every push. The performance numbers and the
+dashboard below were first measured against native MySQL/MongoDB processes, as
+described in the environment note.
 
 ### Environment note
 
@@ -344,9 +389,11 @@ Said plainly rather than left for someone to discover:
 
 - No CI pipeline builds or publishes the `transport-app/<service>:latest`
   images the Kubernetes manifests reference.
-- `notification` and the Kafka broker are not running in the environment
-  these docs were verified against - the outbox/relay code path is
-  written and unit-tested, but the consumer side wasn't exercised live in
-  this session (matches its own tolerant design: a missing broker never
-  crashes the producer side, per every service's Kafka wrapper).
-- `make up` (docker compose) is not yet covered by CI.
+- The compose stack runs the Kafka-compatible broker and `notification`, but
+  the smoke test only checks search and booking through the gateway. It does
+  not assert that a booking event reaches the consumer.
+- Inventory's Kafka promotion consumer does not reconnect. If the broker is
+  unreachable, `RunPromotionConsumer` returns the fetch error, the service
+  logs "promotion consumer failed" and keeps serving requests, but
+  Kafka-driven waitlist promotion stops until the service restarts. Compose
+  avoids the startup case by waiting for the broker to be healthy.

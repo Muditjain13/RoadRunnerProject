@@ -68,6 +68,11 @@ jobs:
       - name: Book through the real UI in headless Chromium
         working-directory: test/e2e
         run: node ui.mjs
+      - name: Load script still runs (10 second k6 scenario)
+        if: matrix.arch == 'amd64'
+        run: >
+          docker run --rm --network host -e DURATION=10s
+          -v "$PWD/test/load:/scripts:ro" grafana/k6:0.54.0 run /scripts/booking.js
       - name: Dump logs on failure
         if: failure()
         run: docker compose -f deploy/compose/docker-compose.yml logs --no-color

@@ -9,3 +9,6 @@
 .idea/
 .vscode/
 .claude/
+
+# Node deps for test/e2e
+test/e2e/node_modules/

@@ -1,0 +1,12 @@
+{
+  "name": "roadrunner-ui-e2e",
+  "private": true,
+  "type": "module",
+  "description": "Headless-browser check that the embedded UI is served and its API calls succeed.",
+  "scripts": {
+    "test": "node ui.mjs"
+  },
+  "dependencies": {
+    "playwright": "1.49.1"
+  }
+}

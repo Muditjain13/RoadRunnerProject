@@ -1,0 +1,19 @@
+# Caddy terminates HTTPS and forwards to the gateway, which serves both the web
+# app and the REST API on one origin. With a real DEMO_DOMAIN Caddy gets and
+# renews a Let's Encrypt certificate by itself; with localhost it uses its own
+# local CA.
+
+{$DEMO_DOMAIN:localhost} {
+	encode gzip
+	reverse_proxy gateway:8080
+}
+
+# Read-only Jaeger trace browser. Only GET and HEAD are allowed through, so the
+# UI can be looked at but nothing can be changed, and the OTLP ingest ports are
+# not published at all. Remove this block to keep Jaeger private (it is still
+# reachable over an SSH tunnel on 127.0.0.1:16686).
+jaeger.{$DEMO_DOMAIN:localhost} {
+	@writes not method GET HEAD
+	respond @writes "read-only" 405
+	reverse_proxy jaeger:16686
+}

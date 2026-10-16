@@ -1,0 +1,90 @@
+# Public-demo profile, layered on top of deploy/compose/docker-compose.yml:
+#
+#   docker compose \
+#     -f deploy/compose/docker-compose.yml \
+#     -f deploy/oracle/docker-compose.demo.yml up -d --build
+#
+# The base file publishes every service port for local development. On a
+# public host that is far too much, so this override:
+#   - removes every published port except what the proxy needs,
+#   - binds the gateway and the admin UIs to the loopback interface only,
+#   - puts Caddy in front for HTTPS on 80 and 443,
+#   - turns on rate limiting that understands the proxy,
+#   - caps memory so the stack fits next to the OS on a small VM.
+#
+# Needs Docker Compose 2.24.4 or newer for the !reset and !override tags.
+name: transport-app
+
+services:
+  # --- datastores and broker: reachable only on the compose network ---------
+  mysql:
+    ports: !reset []
+  mongo:
+    ports: !reset []
+    # Mongo sizes its cache to half the host RAM by default.
+    command: ["mongod", "--bind_ip_all", "--wiredTigerCacheSizeGB", "1"]
+  redis:
+    ports: !reset []
+  redpanda:
+    ports: !reset []
+
+  # --- admin tools: loopback only, reach them with an SSH tunnel ------------
+  jaeger:
+    ports: !override
+      - "127.0.0.1:16686:16686"
+  prometheus:
+    ports: !override
+      - "127.0.0.1:9090:9090"
+
+  # --- application services: no host ports at all ---------------------------
+  catalog:
+    ports: !reset []
+  inventory:
+    ports: !reset []
+  payment:
+    ports: !reset []
+  supplier-sim:
+    ports: !reset []
+  search:
+    ports: !reset []
+  booking:
+    ports: !reset []
+  notification:
+    ports: !reset []
+
+  # --- the one app entry point, behind the proxy ----------------------------
+  gateway:
+    ports: !override
+      - "127.0.0.1:8080:8080"
+    environment:
+      # Caddy reaches the gateway from a private compose-network address, so
+      # trust X-Forwarded-For from private ranges only. The gateway port is
+      # bound to loopback, so nothing else can present that header.
+      GATEWAY_TRUSTED_PROXIES: "172.16.0.0/12,192.168.0.0/16,10.0.0.0/8"
+      GATEWAY_RATE_RPS: "10"
+      GATEWAY_RATE_BURST: "20"
+      # Bookings write to the database, so they get a much tighter budget:
+      # a burst of 5, then one every 5 seconds, per visitor.
+      GATEWAY_WRITE_RATE_RPS: "0.2"
+      GATEWAY_WRITE_RATE_BURST: "5"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # A real host name, for example 203-0-113-10.sslip.io. Defaults to
+      # localhost so the profile can be started and tested anywhere.
+      DEMO_DOMAIN: ${DEMO_DOMAIN:-localhost}
+    volumes:
+      - ../oracle/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      gateway: { condition: service_started }
+
+volumes:
+  caddy-data:
+  caddy-config:

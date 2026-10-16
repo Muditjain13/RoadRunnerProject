@@ -436,8 +436,10 @@ Most valuable first.
 4. **Prove the hard case on the live stack in CI.** A compose override that forces
    supplier declines, asserting the payment is charged and then refunded. Today
    it is proven with fakes and a one-off live run.
-5. **A real load baseline.** `make load` points at `test/load/*.js`, which does
-   not exist yet. Write k6 scripts for search and booking and record the numbers
+5. **Publish a load baseline.** `make load` runs a small k6 scenario
+   ([`test/load/booking.js`](test/load/booking.js), search then seats then
+   booking), and CI runs it for 10 seconds so it cannot rot. What is missing is a
+   sustained run with the gateway rate limit raised, with the numbers recorded
    next to the other benchmarks in `docs/perf/`.
 6. **Signed tokens instead of name-only bearer auth.** The gateway middleware
    seam is already there; this swaps what sits behind it.

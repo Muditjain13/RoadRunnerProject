@@ -108,6 +108,15 @@ func (s *Service) Refund(ctx context.Context, idempotencyKey, paymentID string, 
 
 	var result Refund
 	err := s.repo.WithinTx(ctx, func(ctx context.Context, tx TxRepository) error {
+		// The row lock must be the first statement in the transaction. A
+		// plain read before it would pin the transaction's snapshot
+		// (REPEATABLE READ), and the sum below would then miss refunds
+		// committed by other transactions while this one waited for the lock.
+		payment, err := tx.GetPaymentForUpdate(ctx, paymentID)
+		if err != nil {
+			return fmt.Errorf("get payment for update: %w", err)
+		}
+
 		existing, err := tx.GetRefundByIdempotencyKey(ctx, idempotencyKey)
 		if err == nil {
 			result = existing
@@ -115,11 +124,6 @@ func (s *Service) Refund(ctx context.Context, idempotencyKey, paymentID string, 
 		}
 		if !errors.Is(err, apperrors.ErrNotFound) {
 			return fmt.Errorf("get refund by idempotency key: %w", err)
-		}
-
-		payment, err := tx.GetPaymentForUpdate(ctx, paymentID)
-		if err != nil {
-			return fmt.Errorf("get payment for update: %w", err)
 		}
 		if payment.Status != PaymentSucceeded {
 			return fmt.Errorf("refund payment %s: %w: payment did not succeed", paymentID, apperrors.ErrConflict)

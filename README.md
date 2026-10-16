@@ -85,10 +85,36 @@ flowchart TB
     kafka -.-> notification
     kafka -.->|waitlist promotion| inventory
 
-    classDef svc fill:#1a1f36,color:#fff,stroke:#2b6bff
-    classDef store fill:#2b3563,color:#fff,stroke:#6b7280
-    class gateway,search,catalog,inventory,booking,payment,suppliersim,notification svc
-    class mongo,mysql,redis,kafka store
+    classDef client fill:#0ea5e9,color:#fff,stroke:#0369a1,stroke-width:2px
+    classDef edge fill:#8b5cf6,color:#fff,stroke:#5b21b6,stroke-width:2px
+    classDef read fill:#14b8a6,color:#fff,stroke:#0f766e,stroke-width:2px
+    classDef write fill:#f97316,color:#fff,stroke:#c2410c,stroke-width:2px
+    classDef money fill:#ef4444,color:#fff,stroke:#b91c1c,stroke-width:2px
+    classDef ext fill:#eab308,color:#1f2937,stroke:#a16207,stroke-width:2px
+    classDef async fill:#ec4899,color:#fff,stroke:#9d174d,stroke-width:2px
+    classDef sql fill:#2563eb,color:#fff,stroke:#1e3a8a,stroke-width:2px
+    classDef doc fill:#16a34a,color:#fff,stroke:#14532d,stroke-width:2px
+    classDef cache fill:#dc2626,color:#fff,stroke:#7f1d1d,stroke-width:2px
+    classDef bus fill:#475569,color:#fff,stroke:#0f172a,stroke-width:2px
+
+    class browser client
+    class gateway edge
+    class search,catalog read
+    class inventory,booking write
+    class payment money
+    class suppliersim ext
+    class notification async
+    class mysql sql
+    class mongo doc
+    class redis cache
+    class kafka bus
+
+    style client fill:#0ea5e91a,stroke:#0ea5e9,stroke-dasharray:4 3
+    style edge fill:#8b5cf61a,stroke:#8b5cf6,stroke-dasharray:4 3
+    style core fill:#64748b14,stroke:#64748b,stroke-dasharray:4 3
+    style stores fill:#2563eb14,stroke:#2563eb,stroke-dasharray:4 3
+
+    linkStyle 13,14,15,16 stroke:#ec4899,stroke-width:2px
 ```
 
 **Why two databases**, in one sentence each: MySQL holds seats, holds,

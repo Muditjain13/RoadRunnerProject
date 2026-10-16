@@ -1,5 +1,14 @@
 # RoadRunner Transport
 
+[![CI](https://github.com/Muditjain13/RoadRunnerProject/actions/workflows/ci.yml/badge.svg)](https://github.com/Muditjain13/RoadRunnerProject/actions/workflows/ci.yml)
+![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)
+![gRPC](https://img.shields.io/badge/gRPC-protobuf-244c5a?logo=google&logoColor=white)
+![MySQL](https://img.shields.io/badge/MySQL-8.4-4479A1?logo=mysql&logoColor=white)
+![MongoDB](https://img.shields.io/badge/MongoDB-catalog-47A248?logo=mongodb&logoColor=white)
+![Kafka](https://img.shields.io/badge/Kafka-events-231F20?logo=apachekafka&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-compose-2496ED?logo=docker&logoColor=white)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A multi-modal (bus, train, flight) travel booking backend in Go, built as
 a portfolio piece demonstrating distributed-systems engineering:
 correctness under concurrency and failure, not feature breadth. Eight

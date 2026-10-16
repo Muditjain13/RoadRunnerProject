@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -88,7 +90,10 @@ func run(logger *slog.Logger) error {
 	bookingHandler := handler.NewBookingHandler(bookingv1.NewBookingServiceClient(bookingConn))
 	seatsHandler := handler.NewSeatsHandler(inventoryv1.NewInventoryServiceClient(inventoryConn))
 	waitlistHandler := handler.NewWaitlistHandler(inventoryv1.NewInventoryServiceClient(inventoryConn))
-	rateLimiter := middleware.NewRateLimiter(10, 20) // 10 req/s sustained, burst of 20, per client IP
+	rateLimiter, err := newRateLimiter()
+	if err != nil {
+		return err
+	}
 	httpMetrics := middleware.NewHTTPMetrics(prometheus.DefaultRegisterer)
 
 	router := handler.NewRouter(searchHandler, bookingHandler, seatsHandler, waitlistHandler, rateLimiter, httpMetrics, logger)
@@ -135,6 +140,45 @@ func run(logger *slog.Logger) error {
 
 func envOr(key, fallback string) string {
 	if v, ok := os.LookupEnv(key); ok && v != "" {
+		return v
+	}
+	return fallback
+}
+
+// newRateLimiter builds the per-client limiter from the environment. Defaults
+// match the original fixed behavior: 10 req/s sustained with a burst of 20, no
+// extra write limit, X-Forwarded-For ignored.
+//
+//	GATEWAY_RATE_RPS, GATEWAY_RATE_BURST          general limit per client
+//	GATEWAY_WRITE_RATE_RPS, GATEWAY_WRITE_RATE_BURST
+//	                                              extra limit for POST and other
+//	                                              mutating requests (0 = off)
+//	GATEWAY_TRUSTED_PROXIES                       comma-separated CIDRs of
+//	                                              reverse proxies whose
+//	                                              X-Forwarded-For is believed
+func newRateLimiter() (*middleware.RateLimiter, error) {
+	rl := middleware.NewRateLimiter(envFloat("GATEWAY_RATE_RPS", 10), envInt("GATEWAY_RATE_BURST", 20))
+	if rps := envFloat("GATEWAY_WRITE_RATE_RPS", 0); rps > 0 {
+		rl = rl.WithWriteLimit(rps, envInt("GATEWAY_WRITE_RATE_BURST", 5))
+	}
+	if proxies := envOr("GATEWAY_TRUSTED_PROXIES", ""); proxies != "" {
+		var err error
+		if rl, err = rl.WithTrustedProxies(strings.Split(proxies, ",")); err != nil {
+			return nil, err
+		}
+	}
+	return rl, nil
+}
+
+func envFloat(key string, fallback float64) float64 {
+	if v, err := strconv.ParseFloat(envOr(key, ""), 64); err == nil {
+		return v
+	}
+	return fallback
+}
+
+func envInt(key string, fallback int) int {
+	if v, err := strconv.Atoi(envOr(key, "")); err == nil {
 		return v
 	}
 	return fallback

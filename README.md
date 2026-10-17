@@ -76,7 +76,9 @@ ID=$(jq -r .id <<<"$TRIP"); CLASS=$(jq -r '.classes[0].code' <<<"$TRIP"); FARE=$
 SEAT=$(curl -s "$BASE/v1/trips/$ID/seats?class=$CLASS" | jq -r '.seat_nos[0]')
 
 # 3. Book it (runs the whole saga: hold, pay, supplier confirm)
-curl -s -X POST "$BASE/v1/bookings"   -H 'Authorization: Bearer demo-user' -H 'Content-Type: application/json'   -d "{\"trip_id\":\"$ID\",\"seat_nos\":[\"$SEAT\"],\"amount_paise\":$FARE}"
+curl -s -X POST "$BASE/v1/bookings" \
+  -H 'Authorization: Bearer demo-user' -H 'Content-Type: application/json' \
+  -d "{\"trip_id\":\"$ID\",\"seat_nos\":[\"$SEAT\"],\"amount_paise\":$FARE}"
 ```
 
 A successful booking returns HTTP 201 with `"status":"STATUS_CONFIRMED"`. The
@@ -391,9 +393,10 @@ described in the environment note.
 
 ### Environment note
 
-Every push runs two [CI](.github/workflows/ci.yml) jobs on GitHub Actions:
-build, `go vet` and `go test -race` with coverage, and the full
-`testcontainers-go` integration suite against real MySQL containers. The
+Every push runs five [CI](.github/workflows/ci.yml) jobs on GitHub Actions:
+build, `go vet` and `go test -race` with coverage; the full
+`testcontainers-go` integration suite against real MySQL containers; the
+compose stack on amd64 and on arm64; and the public-demo profile. The
 project was originally built in a sandbox with no Docker and no C
 compiler, so the functional claims, the perf numbers and the dashboard
 below were first verified against native MySQL/MongoDB processes. The

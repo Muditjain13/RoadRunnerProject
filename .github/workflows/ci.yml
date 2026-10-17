@@ -95,6 +95,8 @@ jobs:
         run: GATEWAY=http://127.0.0.1:8080 bash scripts/smoke.sh
       - name: Check exposed ports, HTTPS and write rate limit
         run: bash scripts/check-demo-profile.sh
+      - name: Nightly reset keeps Caddy's certificate volumes
+        run: bash scripts/check-demo-reset.sh
       - name: Dump logs on failure
         if: failure()
         run: docker compose $COMPOSE_ARGS logs --no-color

@@ -88,10 +88,24 @@ reads are unaffected.
 
 ## Nightly reset
 
-`scripts/demo-reset.sh` wipes the volumes and starts the stack from a fresh
-seed. It matters for two reasons: visitors consume seats, and the seed
-generates trips for the 7 days after the day it runs, so without a reset the
-search results run dry a week after deploy.
+`scripts/demo-reset.sh` wipes the app data volumes (`mysql-data`, `mongo-data`
+and `redpanda-data`) and starts the stack from a fresh seed. It matters for two
+reasons: visitors consume seats, and the seed generates trips for the 7 days
+after the day it runs, so without a reset the search results run dry a week
+after deploy.
+
+It deliberately keeps `caddy-data` and `caddy-config`. `docker compose down -v`
+removes every volume of the project, Caddy's included, so Caddy would request a
+brand new Let's Encrypt certificate after every reset. Let's Encrypt allows only
+5 certificates per week for the same set of names, so HTTPS would break within a
+week. The script runs `down` without `-v`, then deletes every volume the compose
+files declare except the ones in its `KEEP` list. A data volume added later is
+therefore wiped by default, and only the certificate volumes survive.
+
+`scripts/check-demo-reset.sh` runs in the `public demo profile` CI job. It records
+each volume's creation time and a hash of Caddy's certificate authority, runs the
+real reset, then fails unless both Caddy volumes and the authority are unchanged,
+the three data volumes were recreated, and HTTPS still answers.
 
 ```bash
 # crontab -e on the VM (03:30 server time)
@@ -139,4 +153,5 @@ log. I have not timed it on the real VM (unverified).
 | Proxy-aware, evicting, write-limited rate limiter, configured from the environment | `internal/gateway/middleware/ratelimit.go`, `cmd/gateway/main.go` |
 | Nightly reset | `scripts/demo-reset.sh` |
 | Exposure, HTTPS and rate-limit check | `scripts/check-demo-profile.sh` |
+| Reset keeps the certificate volumes, checked in CI | `scripts/check-demo-reset.sh` |
 | Smoke test on amd64 and arm64, UI test, and demo-profile job | `.github/workflows/ci.yml` |

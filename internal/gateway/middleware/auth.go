@@ -16,7 +16,7 @@ type contextKey int
 const userIDKey contextKey = 0
 
 // Auth is a deliberately minimal placeholder: there is no identity
-// service in this architecture (CLAUDE.md's services table has none),
+// service in this architecture (the architecture diagram has none),
 // so "auth" here is limited to extracting a caller-supplied user ID from
 // a bearer token and rejecting requests without one - not verifying a
 // real credential. A production gateway would validate a signed token

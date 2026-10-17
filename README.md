@@ -1,5 +1,6 @@
 # RoadRunner Transport
 
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-34--14--221--81.sslip.io-brightgreen?logo=googlechrome&logoColor=white)](https://34-14-221-81.sslip.io)
 [![CI](https://github.com/Muditjain13/RoadRunnerProject/actions/workflows/ci.yml/badge.svg)](https://github.com/Muditjain13/RoadRunnerProject/actions/workflows/ci.yml)
 ![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)
 ![gRPC](https://img.shields.io/badge/gRPC-protobuf-244c5a?logo=google&logoColor=white)
@@ -9,6 +10,8 @@
 ![Docker](https://img.shields.io/badge/Docker-compose-2496ED?logo=docker&logoColor=white)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/Muditjain13/RoadRunnerProject)
+
+**Try it live: [34-14-221-81.sslip.io](https://34-14-221-81.sslip.io)** (search, pick a seat, book; payments and suppliers are simulated). Traces: [Jaeger UI](https://jaeger.34-14-221-81.sslip.io).
 
 A multi-modal (bus, train, flight) travel booking backend in Go, built as
 a portfolio piece demonstrating distributed-systems engineering:
@@ -85,6 +88,8 @@ identity service. The full dataset (about 5.7M seats) is `make seed`.
 A real, running app - search across bus/train/flight, pick a mode, pick
 seats:
 
+![Booking a train ticket on the live demo](docs/assets/demo-booking.gif)
+
 ![Search, with a mode filter (bus/train/flight)](docs/screenshots/app-search.png)
 ![Seat selection for a bus trip](docs/screenshots/app-seat-selection.png)
 
@@ -140,6 +145,8 @@ benchmarks in [`docs/perf/`](docs/perf/).
 - **2 ADRs** ([sweeper](docs/adr/0001-hold-expiry-sweeper.md),
   [resumable saga](docs/adr/0002-resumable-saga.md)) and a checked-in
   Grafana dashboard plus Kubernetes manifests.
+
+![CI: every job green](docs/assets/ci-green.png)
 
 ### Bugs caught by concurrency testing
 
@@ -315,6 +322,12 @@ Every service exports Prometheus RED metrics (`grpc_server_requests_total`
 edge) and a gRPC health check (`pkg/middleware.RegisterHealth`) that
 Kubernetes' native `grpc` probe type checks directly.
 
+Traces go to Jaeger through OpenTelemetry ([live Jaeger UI](https://jaeger.34-14-221-81.sslip.io)):
+
+![One train booking traced across 5 services in Jaeger](docs/assets/jaeger-booking-trace.gif)
+
+*One train booking on the live demo took about 101 ms across 5 services and 11 spans, with the saga calling inventory, payment and supplier-sim in order, then inventory again to confirm.*
+
 Real dashboard, built against a live Prometheus scraping all 7 running
 services, with real traffic (including the error panel - those are real
 404/NotFound responses, not synthetic data):
@@ -424,22 +437,18 @@ Said plainly rather than left for someone to discover:
 
 Most valuable first.
 
-1. **Live demo.** The Oracle Always Free plan is written
-   ([`docs/deploy-oracle.md`](docs/deploy-oracle.md)) and its compose profile is
-   checked in CI on arm64. What is left is creating the VM, a host name and the
-   nightly reset cron entry.
-2. **Publish multi-arch images to GHCR on tag.** Closes the first known gap,
+1. **Publish multi-arch images to GHCR on tag.** Closes the first known gap,
    gives the Kubernetes manifests images to point at, and turns a VM deploy
    into a pull instead of a build.
-3. **Assert the event path in CI.** After a booking, check that `notification`
+2. **Assert the event path in CI.** After a booking, check that `notification`
    consumed the booking event. Closes the second known gap.
-4. **Prove the hard case on the live stack in CI.** A compose override that forces
+3. **Prove the hard case on the live stack in CI.** A compose override that forces
    supplier declines, asserting the payment is charged and then refunded. Today
    it is proven with fakes and a one-off live run.
-5. **Publish a load baseline.** `make load` runs a small k6 scenario
+4. **Publish a load baseline.** `make load` runs a small k6 scenario
    ([`test/load/booking.js`](test/load/booking.js), search then seats then
    booking), and CI runs it for 10 seconds so it cannot rot. What is missing is a
    sustained run with the gateway rate limit raised, with the numbers recorded
    next to the other benchmarks in `docs/perf/`.
-6. **Signed tokens instead of name-only bearer auth.** The gateway middleware
+5. **Signed tokens instead of name-only bearer auth.** The gateway middleware
    seam is already there; this swaps what sits behind it.

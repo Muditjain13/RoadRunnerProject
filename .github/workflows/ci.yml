@@ -1,10 +1,24 @@
 name: CI
 
 on:
+  # Docs-only changes skip CI. No job reads a Markdown file or anything under
+  # docs/ (checked: the scripts, tests, Dockerfile and go:embed use none of them),
+  # and a push that also touches any other file still runs everything.
   push:
     branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
   pull_request:
     branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+
+# A newer push to the same branch cancels the run still in progress.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:

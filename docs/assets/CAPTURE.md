@@ -1,16 +1,46 @@
-# Screenshots and GIFs still to capture
+# Screenshots and GIFs
 
-Everything here needs a screen, so it cannot be generated from a script. Save
-each file under `docs/assets/` with exactly the name shown, then add the
-Markdown line to the README section named in the last column.
+All three captures exist. This file records what each one shows and how to
+retake it, for example after a UI change.
 
-| # | File | What to capture | README spot |
-|---|---|---|---|
-| 1 | `demo-booking.gif` | The web app booking flow, about 15 seconds: pick PNQ to BOM, mode Bus, search, click a class, select one seat, confirm, enter a name, show "Booking confirmed!" | "What it looks like", above the two existing screenshots |
-| 2 | `jaeger-booking-trace.png` | One booking as a trace waterfall across gateway, booking, inventory, payment and supplier-sim | "Observability" |
-| 3 | `ci-green.png` | The Actions run with every job green | "Engineering highlights" |
+| File | What it shows | Used in the README |
+|---|---|---|
+| `demo-booking.gif` | The web app on the live demo: pick a mode, search, choose a class, confirm and pay, "Booking confirmed!" | "What it looks like" |
+| `jaeger-booking-trace.gif` | Jaeger on the live demo: choose the service, find traces, open one train booking and its span waterfall | "Observability" |
+| `ci-green.png` | The Actions run with every job green | "Engineering highlights" |
 
-## Taking #1 and #2 from a GitHub Codespace
+## Before you publish a capture
+
+Look at a few frames first. In the current captures the window title bar, the
+tab strip and the browser profile icon are visible, and the app header shows the
+name typed into the sign-in box. If you do not want any of that public, sign in
+with a demo name such as "Demo User" and crop or hide the browser chrome.
+
+GIFs over about 5 MB load slowly on GitHub. Shrink them with:
+
+```bash
+pip install pillow
+python3 scripts/shrink-gif.py raw.gif docs/assets/demo-booking.gif
+```
+
+The defaults (960 px wide, every second frame, 128 colors) took the raw
+recordings from 7 MB and 15 MB to 1.6 MB and 3.4 MB and kept the text readable.
+
+## Retaking from the live demo
+
+- Booking GIF: open https://34-14-221-81.sslip.io, record the browser tab at
+  about 1280x720 with ScreenToGif or similar, pick a mode, search, click a class,
+  confirm, and stop on "Booking confirmed!".
+- Jaeger GIF: after at least one booking, open
+  https://jaeger.34-14-221-81.sslip.io, set **Service** to `gateway`, click
+  **Find Traces**, open the newest booking trace, and let the recording finish on
+  the span waterfall.
+
+The trace in the current GIF is one train booking, `POST /v1/bookings/train`,
+about 101 ms, 5 services and 11 spans, with the saga calling inventory (hold),
+payment, supplier-sim and inventory again (confirm), in that order.
+
+## Retaking from a GitHub Codespace
 
 This needs no local Docker. The dev container config has not been opened in a
 real Codespace yet, so if a step below differs from what you see, trust the
@@ -31,41 +61,32 @@ screen and tell me what changed.
    | Port | Label | Use |
    |---|---|---|
    | 8080 | Web app and REST API (gateway) | the booking GIF |
-   | 16686 | Jaeger traces | the trace screenshot |
+   | 16686 | Jaeger traces | the trace GIF |
    | 9090 | Prometheus | not needed |
 
    Click the globe icon next to a port to open it in your browser. The URL looks
    like `https://<codespace-name>-8080.app.github.dev`. Ports are private by
    default, which is fine as long as that browser is signed in to GitHub. Do not
    make a port public unless you have to, and set it back to private after.
-4. **Booking GIF (#1).** Record the browser tab, not VS Code, with ScreenToGif
-   or similar at about 1280x720. In the app choose From Pune, To Mumbai, Bus,
-   click **Search trips**, click a class chip that says "left", pick one seat,
-   click the confirm button, type any name, and stop recording on "Booking
-   confirmed!". Keep the file under 3 MB.
-5. **Jaeger screenshot (#2).** After at least one booking, open the 16686 URL.
-   Set **Service** to `gateway`, click **Find Traces**, and sort by **Most
-   Spans**. The trace with the most spans is the booking, because the saga calls
-   inventory, payment and the supplier simulator. Open it, expand all spans, and
-   screenshot the waterfall. I have not seen the exact span names in this
-   environment, so go by span count, not by name.
-6. Stop the codespace when you are done so it does not use your free hours.
+4. Record the booking and the Jaeger search-to-waterfall flow exactly as in the
+   live-demo steps above, using the forwarded URLs.
+5. Stop the codespace when you are done so it does not use your free hours.
 
-## #3 CI screenshot
+## CI screenshot
 
 Open the latest run at
 https://github.com/Muditjain13/RoadRunnerProject/actions and screenshot the job
-graph.
+list and the job graph.
 
-## Markdown to paste once the files exist
+## Markdown used in the README
 
 ```markdown
-![Booking flow in the web app](docs/assets/demo-booking.gif)
-![One booking traced across services in Jaeger](docs/assets/jaeger-booking-trace.png)
+![Booking a train ticket on the live demo](docs/assets/demo-booking.gif)
+![One train booking traced across 5 services in Jaeger](docs/assets/jaeger-booking-trace.gif)
 ![CI: every job green](docs/assets/ci-green.png)
 ```
 
-## Already generated (real output, no capture needed)
+## Real command output, no capture needed
 
 - `smoke-run.txt`: the compose smoke test from a green CI run.
 - `concurrency-tests.txt`: the concurrency and hard-case unit tests.

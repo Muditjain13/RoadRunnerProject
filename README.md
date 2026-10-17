@@ -379,12 +379,18 @@ services.
 /api/proto/                  .proto files, generated stubs committed
 /migrations/<service>/       golang-migrate SQL files
 /deploy/compose/             docker-compose.yml (the reference way to run this)
+/deploy/oracle/              public-demo profile: compose override plus Caddy (name is historical, not Oracle-specific)
 /deploy/k8s/                 Kubernetes manifests - see its own README for caveats
 /deploy/grafana/             checked-in dashboard JSON
 /deploy/local/               native (non-Docker) Prometheus config, used to build the screenshots above
 /docs/adr/                   architecture decision records
 /docs/perf/                  EXPLAIN output and before/after benchmarks
 /docs/screenshots/           the Grafana screenshots above
+/docs/assets/                demo GIFs, CI screenshot and real command output
+/docs/deploy.md              how the live demo is deployed
+/scripts/                    smoke test, demo profile checks, nightly reset, GIF shrinker
+/test/                       integration tests, headless-browser UI test, k6 load scenario
+/.devcontainer/              GitHub Codespaces setup
 ```
 
 ## Running it

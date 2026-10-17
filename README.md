@@ -11,7 +11,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/Muditjain13/RoadRunnerProject)
 
-**Try it live: [34-14-221-81.sslip.io](https://34-14-221-81.sslip.io)** (search, pick a seat, book; payments and suppliers are simulated). Traces: [Jaeger UI](https://jaeger.34-14-221-81.sslip.io).
+**Try it live: [34-14-221-81.sslip.io](https://34-14-221-81.sslip.io)** (search, pick a seat, book; payments and suppliers are simulated). Traces: [Jaeger UI](https://jaeger.34-14-221-81.sslip.io). How it is deployed: [`docs/deploy.md`](docs/deploy.md).
 
 A multi-modal (bus, train, flight) travel booking backend in Go, built as
 a portfolio piece demonstrating distributed-systems engineering:

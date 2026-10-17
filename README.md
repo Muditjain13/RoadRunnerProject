@@ -1,17 +1,27 @@
 # RoadRunner Transport
 
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-34--14--221--81.sslip.io-brightgreen?logo=googlechrome&logoColor=white)](https://34-14-221-81.sslip.io)
-[![CI](https://github.com/Muditjain13/RoadRunnerProject/actions/workflows/ci.yml/badge.svg)](https://github.com/Muditjain13/RoadRunnerProject/actions/workflows/ci.yml)
-![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)
-![gRPC](https://img.shields.io/badge/gRPC-protobuf-244c5a?logo=google&logoColor=white)
-![MySQL](https://img.shields.io/badge/MySQL-8.4-4479A1?logo=mysql&logoColor=white)
-![MongoDB](https://img.shields.io/badge/MongoDB-catalog-47A248?logo=mongodb&logoColor=white)
-![Kafka](https://img.shields.io/badge/Kafka-events-231F20?logo=apachekafka&logoColor=white)
-![Docker](https://img.shields.io/badge/Docker-compose-2496ED?logo=docker&logoColor=white)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/Muditjain13/RoadRunnerProject)
+<p align="center">
+  <a href="https://34-14-221-81.sslip.io"><img src="https://img.shields.io/badge/LIVE%20DEMO-Open%20the%20app-brightgreen?style=for-the-badge" alt="Live demo: open the app"></a>
+  &nbsp;
+  <a href="https://jaeger.34-14-221-81.sslip.io"><img src="https://img.shields.io/badge/TRACES-Jaeger%20UI-1f6feb?style=for-the-badge" alt="Live traces: Jaeger UI"></a>
+</p>
 
-**Try it live: [34-14-221-81.sslip.io](https://34-14-221-81.sslip.io)** (search, pick a seat, book; payments and suppliers are simulated). Traces: [Jaeger UI](https://jaeger.34-14-221-81.sslip.io). How it is deployed: [`docs/deploy.md`](docs/deploy.md).
+<p align="center">
+  <b>Search, pick a seat and book a bus, train or flight ticket. Every request is traced end to end.</b><br>
+  <sub>Payments and suppliers are simulated. <a href="docs/deploy.md">How it is deployed</a></sub>
+</p>
+
+<p align="center">
+  <a href="https://github.com/Muditjain13/RoadRunnerProject/actions/workflows/ci.yml"><img src="https://github.com/Muditjain13/RoadRunnerProject/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white" alt="Go">
+  <img src="https://img.shields.io/badge/gRPC-protobuf-244c5a?logo=google&logoColor=white" alt="gRPC">
+  <img src="https://img.shields.io/badge/MySQL-8.4-4479A1?logo=mysql&logoColor=white" alt="MySQL">
+  <img src="https://img.shields.io/badge/MongoDB-catalog-47A248?logo=mongodb&logoColor=white" alt="MongoDB">
+  <img src="https://img.shields.io/badge/Kafka-events-231F20?logo=apachekafka&logoColor=white" alt="Kafka">
+  <img src="https://img.shields.io/badge/Docker-compose-2496ED?logo=docker&logoColor=white" alt="Docker">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
+  <a href="https://codespaces.new/Muditjain13/RoadRunnerProject"><img src="https://github.com/codespaces/badge.svg" alt="Open in GitHub Codespaces"></a>
+</p>
 
 A multi-modal (bus, train, flight) travel booking backend in Go, built as
 a portfolio piece demonstrating distributed-systems engineering:
